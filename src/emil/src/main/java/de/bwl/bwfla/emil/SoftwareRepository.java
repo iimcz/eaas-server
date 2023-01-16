@@ -262,18 +262,22 @@ public class SoftwareRepository extends EmilRest
 						}
 					}
 
-					LOG.info("Trying archive '" + swo.getArchiveId() + "' for " + swo.getObjectId());
-					if (archiveName == null || archiveName.startsWith("user")) {
-						LOG.info("Importing object...");
-						DigitalObjectMetadata md = objHelper.getObjectMetadata(archiveName, swo.getObjectId());
-						if (md == null) {
-							LOG.severe("Importing object failed!");
-							return Emil.errorMessageResponse("Failed to access object!");
-						}
+					//the following commented code creates an error when storing an object as software
+					//I did some testing and encountered no problems without the additional
+					//"default" archive
 
-						objHelper.importFromMetadata("default", md.getMetsData());
-						archiveName = "default";
-					}
+//					LOG.info("Trying archive '" + swo.getArchiveId() + "' for " + swo.getObjectId());
+//					if (archiveName == null || archiveName.startsWith("user")) {
+//						LOG.info("Getting metadata for object...");
+//						DigitalObjectMetadata md = objHelper.getObjectMetadata(archiveName, swo.getObjectId());
+//						if (md == null) {
+//							LOG.severe("Getting object metadata failed!");
+//							return Emil.errorMessageResponse("Failed to access object!");
+//						}
+//
+//						objHelper.importFromMetadata("default", md.getMetsData());
+//						archiveName = "default";
+//					}
 
 					software = new SoftwarePackage();
 					software.setObjectId(swo.getObjectId());
