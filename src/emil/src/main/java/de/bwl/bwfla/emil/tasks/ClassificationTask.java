@@ -82,6 +82,13 @@ public class ClassificationTask extends BlockingTask<Object>
 //             FIXME
 //             we need to call EmilEnvironmentData.init() here
 //        }
+
+        //keep this check for the future
+        //if the imagearchive is null (should not happen anymore), the task will fail without any error logs (=hours of debugging)
+        if(imagearchive == null){
+            throw new BWFLAException("Could not connect to ImageArchive...");
+        }
+
         HashSet<String> knownEnvironments = new HashSet<>();
         for (String envId : proposedEnvironments) {
             final var exists = imagearchive.api()
@@ -148,6 +155,7 @@ public class ClassificationTask extends BlockingTask<Object>
 
     private ClassificationResult classifyObject(String url, String filename) throws BWFLAException {
         try {
+            LOG.info("Classifying Object (from url)");
 
             ClassificationResult response;
 
@@ -191,6 +199,7 @@ public class ClassificationTask extends BlockingTask<Object>
 
     private ClassificationResult classifyObject(FileCollection fc) throws BWFLAException {
         try {
+            LOG.info("Classifying Object (file collection)");
 
             ClassificationResult response;
 
@@ -213,9 +222,16 @@ public class ClassificationTask extends BlockingTask<Object>
                     continue;
 
                 // FIXME
-                List<ClassificationResult.FileFormat> fmts = details.getEntries().stream().map((ClassificationEntry ce) -> {
-                    return new ClassificationResult.FileFormat(ce.getType(), ce.getTypeName(), ce.getCount(), ce.getFromDate(), ce.getToDate());
-                }).collect(Collectors.toList());
+                List<ClassificationResult.FileFormat> fmts = details
+                        .getEntries()
+                        .stream()
+                        .map((ClassificationEntry ce) ->
+                                new ClassificationResult.FileFormat(ce.getType(),
+                                        ce.getTypeName(),
+                                        ce.getCount(),
+                                        ce.getFromDate(),
+                                        ce.getToDate()))
+                        .collect(Collectors.toList());
 
                 ClassificationResult.IdentificationData d = new ClassificationResult.IdentificationData();
                 d.setFileFormats(fmts);
@@ -346,6 +362,7 @@ public class ClassificationTask extends BlockingTask<Object>
 //
 //        response.setEnvironmentList(environmentList);
 //>>>>>>> master
+        LOG.info("Finished proposing environments!");
         return response;
     }
 

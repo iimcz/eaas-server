@@ -94,17 +94,23 @@ public abstract class BaseTask extends BlockingTask<Object>
 		this.executor = executor;
 		imageMounter = new ImageMounter(log);
 
-		for (FileCollectionEntry fce : request.getFileCollection().files) {
-			var location = fce.getUrl();
+		if (request.getFileCollection() != null) {
+			for (FileCollectionEntry fce : request.getFileCollection().files) {
+				var location = fce.getUrl();
 
-			// Optionally, resolve relative URLs...
-			if (location == null || DataResolver.isRelativeUrl(location)) {
-				location = DataResolvers.objects()
-						.resolve(fce, userctx);
+				// Optionally, resolve relative URLs...
+				if (location == null || DataResolver.isRelativeUrl(location)) {
+					location = DataResolvers.objects()
+							.resolve(fce, userctx);
 
-				fce.setUrl(location);
+					fce.setUrl(location);
+				}
 			}
 		}
+		else {
+			log.warning("Could not set location, as no file collection was found!");
+		}
+
 	}
 
 	private IdentificationData<?> identifyFile(String url, String fileName)

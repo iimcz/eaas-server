@@ -1,5 +1,6 @@
 package de.bwl.bwfla.emil;
 
+import com.openslx.eaas.imagearchive.ImageArchiveClient;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.database.MongodbEaasConnector;
 import de.bwl.bwfla.emil.datatypes.EnvironmentInfo;
@@ -158,15 +159,27 @@ public class ObjectClassification {
         request.metadata = metadata;
         request.input = null;
         request.userCtx = this.getUserContext().clone();
+        try{
+            //this fixes classification with url + filename error
+            //TODO does ImageArchiveClient.create() always work?
+            request.imagearchive = ImageArchiveClient.create();
+        }
+        catch (Exception e){
+            LOG.warning("Could not create ImageArchiveClient!");
+        }
 
-        return taskManager.submitTask(new ClassificationTask(request));
+        var taskId = taskManager.submitTask(new ClassificationTask(request));
+        LOG.info("Starting Classification Task with id " + taskId + " (URL + filename)");
+        return taskId;
     }
 
     public String getEnvironmentsForObject(FileCollection fc, boolean forceCharacterization,
                 boolean forceProposal, boolean noUpdate) throws BWFLAException
     {
         final var userctx = this.getUserContext();
-        return taskManager.submitTask(this.newClassificationTask(fc, forceCharacterization, forceProposal, noUpdate, userctx));
+        var taskId =  taskManager.submitTask(this.newClassificationTask(fc, forceCharacterization, forceProposal, noUpdate, userctx));
+        LOG.info("Starting Classification Task with id " + taskId + " (FileCollection)");
+        return taskId;
     }
 
     public ClassificationTask newClassificationTask(FileCollection fc, boolean forceCharacterization,
@@ -181,6 +194,14 @@ public class ObjectClassification {
         request.noUpdate = noUpdate;
         request.forceProposal = forceProposal;
         request.userCtx = userctx.clone();
+        try{
+            //this fixes classification with fc error
+            //TODO does ImageArchiveClient.create() always work?
+            request.imagearchive = ImageArchiveClient.create();
+        }
+        catch (Exception e){
+            LOG.warning("Could not create ImageArchiveClient!");
+        }
 
         if(!forceCharacterization || noUpdate)
             try {
