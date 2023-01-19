@@ -38,12 +38,17 @@ public class ClassificationResult extends EmilResponseType {
     @XmlElement(required = false)
     private String userDescription;
 
+    @XmlElement(required = false)
+    private HashMap<String,  List<String>> files;
+
+
     public ClassificationResult(String objectId,
                                 HashMap<String, IdentificationData> fileFormats,
-                                HashMap<String, DiskType> mediaFormats) {
+                                HashMap<String, DiskType> mediaFormats, HashMap<String, List<String>> files) {
         this.objectId = objectId;
         this.fileFormatMap = fileFormats;
         this.mediaFormats = mediaFormats;
+        this.files = files;
     }
 
     public ClassificationResult(BWFLAException e) {
@@ -121,6 +126,15 @@ public class ClassificationResult extends EmilResponseType {
         this.mediaFormats = mediaFormats;
     }
 
+    public HashMap<String, List<String>> getFiles()
+    {
+        return files;
+    }
+
+    public void setFiles(HashMap<String, List<String>> files)
+    {
+        this.files = files;
+    }
 
     @XmlRootElement
     @XmlAccessorType(XmlAccessType.NONE)

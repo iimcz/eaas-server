@@ -84,7 +84,7 @@ public class ClassificationTask extends BlockingTask<Object>
 //        }
 
         //keep this check for the future
-        //if the imagearchive is null (should not happen anymore), the task will fail without any error logs (=hours of debugging)
+        //if the imagearchive is null (should not happen anymore), the task will fail without any error logs (=a lot of debugging)
         if(imagearchive == null){
             throw new BWFLAException("Could not connect to ImageArchive...");
         }
@@ -153,102 +153,79 @@ public class ClassificationTask extends BlockingTask<Object>
         return result;
     }
 
-    private ClassificationResult classifyObject(String url, String filename) throws BWFLAException {
+    private ClassificationResult classifyObject(IdentificationRequest req, String fileId) throws BWFLAException{
         try {
-            LOG.info("Classifying Object (from url)");
-
-            ClassificationResult response;
-
-            IdentificationRequest req = new IdentificationRequest(url, filename);
+            log.info("Classifying object: '" + fileId + "'....");
             Identification<ClassificationEntry> id = this.imageClassifier.getClassification(req, request.userCtx);
 
             HashMap<String, Identification.IdentificationDetails<ClassificationEntry>> data = id.getIdentificationData();
-            if(data == null)
-            {
-                LOG.warning("identification failed for objectID:" + filename );
+            if (data == null) {
+                LOG.warning("Did not get identification data for '" + fileId + "'.");
                 return new ClassificationResult();
             }
 
             HashMap<String, ClassificationResult.IdentificationData> fileFormats = new HashMap<>();
             HashMap<String, DiskType> mediaFormats = new HashMap<>();
+            HashMap<String, List<String>> filesPerFce = new HashMap<>();
 
-            Identification.IdentificationDetails<ClassificationEntry> details = data.get(filename);
-
-            // FIXME
-            List<ClassificationResult.FileFormat> fmts = details.getEntries().stream().map((ClassificationEntry ce) -> {
-                return new ClassificationResult.FileFormat(ce.getType(), ce.getTypeName(), ce.getCount(), ce.getFromDate(), ce.getToDate());
-            }).collect(Collectors.toList());
-
-            ClassificationResult.IdentificationData d = new ClassificationResult.IdentificationData();
-            d.setFileFormats(fmts);
-            fileFormats.put(filename, d);
-
-            if(details.getDiskType() != null)
-                mediaFormats.put(filename, details.getDiskType());
-
-            response = new ClassificationResult(filename, fileFormats, mediaFormats);
-
-            return response;
-        } catch (Throwable t) {
-            LOG.warning("classification failed: " + t.getMessage());
+            if(req.getFileCollection()!= null){
+                for (FileCollectionEntry fce : req.getFileCollection().files) {
+                    setupClassificationData(data, fileFormats, mediaFormats, filesPerFce, fce.getId());
+                }
+            }
+            else if (req.getFileName()!=null) {
+                setupClassificationData(data, fileFormats, mediaFormats, filesPerFce, fileId);
+            }
+            log.info("Successfully classified: '" + fileId + "'.");
+            return new ClassificationResult(fileId, fileFormats, mediaFormats, filesPerFce);
+        }
+        catch (Throwable t) {
+            LOG.warning("Classification failed: " + t.getMessage());
             LOG.log(Level.SEVERE, t.getMessage(), t);
             return new ClassificationResult();
         }
-
     }
 
-    private ClassificationResult classifyObject(FileCollection fc) throws BWFLAException {
-        try {
-            LOG.info("Classifying Object (file collection)");
+    private static void setupClassificationData(HashMap<String, Identification.IdentificationDetails<ClassificationEntry>> data,
+                                                HashMap<String, ClassificationResult.IdentificationData> fileFormats,
+                                                HashMap<String, DiskType> mediaFormats,
+                                                HashMap<String, List<String>> filesPerFce,
+                                                String fileId)
+    {
+        Identification.IdentificationDetails<ClassificationEntry> details = data.get(fileId);
+        if (details == null)
+            return;
 
-            ClassificationResult response;
+        List<ClassificationResult.FileFormat> fmts = getFileFormats(details);
 
-            IdentificationRequest req = new IdentificationRequest(fc, null);
-            Identification<ClassificationEntry> id = this.imageClassifier.getClassification(req, request.userCtx);
+        List<String> files = details
+                .getEntries()
+                .stream()
+                .flatMap((ClassificationEntry ce) -> ce.getFiles().stream())
+                .collect(Collectors.toList());
+        filesPerFce.put(fileId, files);
 
-            HashMap<String, Identification.IdentificationDetails<ClassificationEntry>> data = id.getIdentificationData();
-            if(data == null)
-            {
-                LOG.warning("identification failed for objectID:" + fc.id );
-                return new ClassificationResult();
-            }
+        ClassificationResult.IdentificationData d = new ClassificationResult.IdentificationData();
+        d.setFileFormats(fmts);
+        fileFormats.put(fileId, d);
 
-            HashMap<String, ClassificationResult.IdentificationData> fileFormats = new HashMap<>();
-            HashMap<String, DiskType> mediaFormats = new HashMap<>();
-            for(FileCollectionEntry fce : fc.files)
-            {
-                Identification.IdentificationDetails<ClassificationEntry> details = data.get(fce.getId());
-                if(details == null)
-                    continue;
+        if (details.getDiskType() != null)
+            mediaFormats.put(fileId, details.getDiskType());
+    }
 
-                // FIXME
-                List<ClassificationResult.FileFormat> fmts = details
-                        .getEntries()
-                        .stream()
-                        .map((ClassificationEntry ce) ->
-                                new ClassificationResult.FileFormat(ce.getType(),
-                                        ce.getTypeName(),
-                                        ce.getCount(),
-                                        ce.getFromDate(),
-                                        ce.getToDate()))
-                        .collect(Collectors.toList());
-
-                ClassificationResult.IdentificationData d = new ClassificationResult.IdentificationData();
-                d.setFileFormats(fmts);
-                fileFormats.put(fce.getId(), d);
-
-                if(details.getDiskType() != null)
-                    mediaFormats.put(fce.getId(), details.getDiskType());
-            }
-            response = new ClassificationResult(fc.id, fileFormats, mediaFormats);
-
-            return response;
-        } catch (Throwable t) {
-            LOG.warning("classification failed: " + t.getMessage());
-            LOG.log(Level.SEVERE, t.getMessage(), t);
-            return new ClassificationResult();
-        }
-
+    private static List<ClassificationResult.FileFormat> getFileFormats(Identification.IdentificationDetails<ClassificationEntry> details)
+    {
+        List<ClassificationResult.FileFormat> fmts = details
+                .getEntries()
+                .stream()
+                .map((ClassificationEntry ce) ->
+                        new ClassificationResult.FileFormat(ce.getType(),
+                                ce.getTypeName(),
+                                ce.getCount(),
+                                ce.getFromDate(),
+                                ce.getToDate()))
+                .collect(Collectors.toList());
+        return fmts;
     }
 
     private ClassificationResult propose(ClassificationResult response) {
@@ -281,7 +258,7 @@ public class ClassificationTask extends BlockingTask<Object>
 
         Proposal proposal = null;
         try {
-            proposal = imageProposer.propose(new ProposalRequest(fileFormats, mediaFormats));
+            proposal = imageProposer.propose(new ProposalRequest(fileFormats, mediaFormats, response.getFiles()));
         } catch (InterruptedException e) {
             return new ClassificationResult(new BWFLAException(e));
         }
@@ -376,12 +353,15 @@ public class ClassificationTask extends BlockingTask<Object>
             return result;
 
         if(request.fileCollection != null) {
-            if (request.input == null || request.input.getMediaFormats().size() == 0)
-                request.input = classifyObject(request.fileCollection);
+            if (request.input == null || request.input.getMediaFormats().size() == 0){
+                request.input = classifyObject(new IdentificationRequest(request.fileCollection, null),
+                        request.fileCollection.id);
+            }
+
         }
         else if(request.url != null && request.filename != null)
         {
-            request.input = classifyObject(request.url, request.filename);
+            request.input = classifyObject(new IdentificationRequest(request.url, request.filename), request.filename);
             return propose(request.input);
         }
         else {

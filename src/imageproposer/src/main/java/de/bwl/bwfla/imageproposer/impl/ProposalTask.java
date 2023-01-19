@@ -54,16 +54,36 @@ public class ProposalTask extends BlockingTask<Object>
 				if(fileName == null)
 					continue;
 
-				int index = fileName.lastIndexOf('.');
-				if(index < 0)
-					continue;
-				String ext = fileName.substring(index + 1);
+				String ext = getFileExtension(fileName);
+				if (ext == null) continue;
 				extensions.add(ext.trim().toLowerCase());
 				log.info("found extension: " + ext);
 			}
 		}
+		if (request.getFiles() != null) {
+			for (var key : request.getFiles().keySet()) {
+				List<String> fileList;
+				if ((fileList = request.getFiles().get(key)) != null) {
+					for (String file : fileList) {
+						String ext = getFileExtension(file);
+						if (ext == null) continue;
+						extensions.add(ext.trim().toLowerCase());
+						log.info("found extension: " + ext);
+					}
+				}
+			}
+		}
 
 		return extensions;
+	}
+
+	private static String getFileExtension(String fileName)
+	{
+		int index = fileName.lastIndexOf('.');
+		if(index < 0)
+			return null;
+		String ext = fileName.substring(index + 1);
+		return ext;
 	}
 
 	private void proposeByExtension(ImageIndex index,
@@ -72,16 +92,22 @@ public class ProposalTask extends BlockingTask<Object>
 		int maxCount = 0;
 		HashMap<String, Integer> resultMap = new HashMap<>(); // count hits per environment
 
-		log.info("using file extensions...");
+		log.info("Could not find suitable images through PUIDs, now trying file extensions...");
 
 		Set<String> extensions = getExtensions();
-		if(getExtensions().isEmpty())
+		if(getExtensions().isEmpty()){
+			log.info("Did not get any extensions, no results will be added.");
 			return;
+		}
 
 		for (String ext : extensions) {
+
+			log.info("Checking extension: " + ext);
+
 			Set<String> envIds = index.getEnvironmentsByExt(ext);
 			if (envIds != null) {
 				for (String envId : envIds) {
+					log.info("Found suitable env! " + envId);
 					Integer count = resultMap.get(envId);
 					if (count == null)
 						count = 0;
@@ -162,7 +188,8 @@ public class ProposalTask extends BlockingTask<Object>
 	public Proposal execute() throws Exception
 	{
 		// Update the index, if needed!
-		// indexHandle.refresh();
+		// uncommenting this fixes environments not considered by proposer before restarting the system
+		indexHandle.refresh();
 
 		Collection<String> images = new HashSet<String>();
 		final Map<String, String> missing = new HashMap<>();
@@ -178,12 +205,16 @@ public class ProposalTask extends BlockingTask<Object>
 
 		images = sorter.sort(images);
 		
-//		log.info("Propose algorithm finished! " + images.size() + " suitable image(s) found.");
-//		if (numMissingFormats > 0) {
-//			final int numFormats = numFoundFormats + numMissingFormats;
-//			log.info("No suitable images found for " + numMissingFormats + " of " + numFormats + " format(s).");
-//		}
-		
+		log.info("Propose algorithm finished! " + images.size() + " suitable environment(s) found:");
+
+
+		if (!missing.isEmpty()) {
+			log.info("No suitable environments found for the following format(s):");
+			for(var miss : missing.entrySet()){
+				log.info(">>> " + miss.getKey() + ":" + miss.getValue());
+			}
+		}
+
 		return new Proposal(images, missing);
 	}
 

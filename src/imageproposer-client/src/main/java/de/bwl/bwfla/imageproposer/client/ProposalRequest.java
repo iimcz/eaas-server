@@ -41,10 +41,21 @@ public class ProposalRequest
 	@XmlElement(name="mediaFormats")
 	private HashMap<String, DiskType> mediaFormats;
 
+	@XmlElement(name="files")
+	private HashMap<String, List<String>> files;
+
+
 	public ProposalRequest(HashMap<String, List<Entry>> fileFormats, HashMap<String, DiskType> mediaFormats)
 	{
 		this.fileFormats = fileFormats;
 		this.mediaFormats = mediaFormats;
+	}
+
+	public ProposalRequest(HashMap<String, List<Entry>> fileFormats, HashMap<String, DiskType> mediaFormats, HashMap<String, List<String>> files)
+	{
+		this.fileFormats = fileFormats;
+		this.mediaFormats = mediaFormats;
+		this.files = files;
 	}
 
 	ProposalRequest() {}
@@ -65,6 +76,15 @@ public class ProposalRequest
 		this.mediaFormats = mediaFormats;
 	}
 
+	public HashMap<String, List<String>> getFiles()
+	{
+		return files;
+	}
+
+	public void setFiles(HashMap<String, List<String>> files)
+	{
+		this.files = files;
+	}
 
 	@XmlRootElement
 	public static class Entry
