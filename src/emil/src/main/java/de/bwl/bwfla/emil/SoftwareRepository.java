@@ -34,6 +34,8 @@ import de.bwl.bwfla.common.services.security.UserContext;
 import de.bwl.bwfla.imageproposer.client.ImageProposer;
 import de.bwl.bwfla.objectarchive.util.ObjectArchiveHelper;
 import de.bwl.bwfla.softwarearchive.util.SoftwareArchiveHelper;
+import gov.loc.mets.FileType;
+import gov.loc.mets.Mets;
 import org.apache.tamaya.inject.api.Config;
 
 import javax.annotation.PostConstruct;
@@ -49,6 +51,7 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.StreamingOutput;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.logging.Level;
 import java.util.stream.Stream;
 
@@ -262,22 +265,49 @@ public class SoftwareRepository extends EmilRest
 						}
 					}
 
+
+					//step 1
+					//private software -> public software
+					//dann object publizieren
+					//dann public object -> public software
+
+					// copy folder to public/default archive?
+
 					//the following commented code creates an error when storing an object as software
 					//I did some testing and encountered no problems without the additional
 					//"default" archive
 
-//					LOG.info("Trying archive '" + swo.getArchiveId() + "' for " + swo.getObjectId());
-//					if (archiveName == null || archiveName.startsWith("user")) {
-//						LOG.info("Getting metadata for object...");
-//						DigitalObjectMetadata md = objHelper.getObjectMetadata(archiveName, swo.getObjectId());
-//						if (md == null) {
-//							LOG.severe("Getting object metadata failed!");
-//							return Emil.errorMessageResponse("Failed to access object!");
-//						}
-//
-//						objHelper.importFromMetadata("default", md.getMetsData());
-//						archiveName = "default";
-//					}
+					//resolver fragt nach getObjectReference und sucht iso obwohl eigentlich nur 1 file gewollt ist
+
+					LOG.info("Trying archive '" + swo.getArchiveId() + "' for " + swo.getObjectId());
+					if (archiveName == null || archiveName.startsWith("user")) {
+
+						LOG.info("Object needs to be reimported to the default archive, so that it is able to be published as software...");
+						DigitalObjectMetadata md = objHelper.getObjectMetadata(archiveName, swo.getObjectId());
+
+						if (md == null) {
+							LOG.severe("Getting object metadata failed!");
+							return Emil.errorMessageResponse("Failed to access object!");
+						}
+
+						// modify metadata to use for import
+						// necessary as we need presigned URLS for the actual files and not packed-iso
+						Mets m = Mets.fromValue(md.getMetsData(), Mets.class);
+						var fs = m.getFileSec();
+						var fgrp = fs.getFileGrp();
+						for (var f : fgrp){
+							var files = f.getFile();
+							for (FileType actFile : files){
+								var resolved = objHelper.resolveObjectResourceInternally(archiveName, swo.getObjectId(), actFile.getID(), "GET");
+								FileType.FLocat location = actFile.getFLocat().get(0);
+								location.setHref(resolved);
+
+							}
+						}
+
+						objHelper.importFromMetadata("default", m.toString());
+						archiveName = "default";
+					}
 
 					software = new SoftwarePackage();
 					software.setObjectId(swo.getObjectId());

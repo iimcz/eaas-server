@@ -143,6 +143,12 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 	}
 
 	@Override
+	public FileCollection getInternalReference(String objectId) throws BWFLAException
+	{
+		return getObjectReference(objectId);
+	}
+
+	@Override
 	public String getName() {
 		return name;
 	}

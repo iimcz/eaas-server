@@ -230,6 +230,8 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	private void importObjectFile(String objectId, FileCollectionEntry resource, Path tmpdir)
 			throws BWFLAException
 	{
+
+		log.info("Importing Object File");
 		final var path = this.resolveTarget(objectId, resource);
 		final var blob = bucket.blob(path.toString());
 		this.upload(blob, resource, "application/octet-stream", tmpdir);
@@ -266,6 +268,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	@Override
 	public void importObject(String metsdata) throws BWFLAException
 	{
+		log.info("Importing Object from metadata...");
 		MetsObject o = new MetsObject(metsdata);
 		if (o.getId() == null || o.getId().isEmpty())
 			throw new BWFLAException("Invalid object ID: " + o.getId());
@@ -324,6 +327,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 
 	private boolean objectExists(String objectId)
 	{
+		log.info("Checking whether object '" + objectId + "' already exists...");
 		if (objectId == null)
 			return false;
 
@@ -440,6 +444,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	@Override
 	public FileCollection getObjectReference(String objectId)
 	{
+		log.info("Getting object reference for: " + objectId);
 		try {
 			final MetsObject mets = this.loadMetsData(objectId);
 			final FileCollection fc = mets.getFileCollection(null);
@@ -461,6 +466,22 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 			return null;
 		}
 	}
+
+
+	public FileCollection getInternalReference(String objectId)
+	{
+		log.info("Getting internal reference for: " + objectId);
+		try {
+			final MetsObject mets = this.loadMetsData(objectId);
+			final FileCollection fc = mets.getFileCollection(null);
+			return fc;
+		}
+		catch (Exception error) {
+			log.log(Level.WARNING, "Loading object description failed!", error);
+			return null;
+		}
+	}
+
 
 	private FileCollection describe(String objectId) throws BWFLAException
 	{
@@ -562,6 +583,19 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 		var url = DigitalObjectArchive.super.resolveObjectResource(objectId, resourceId, method);
 		if (url == null || DataResolver.isAbsoluteUrl(url))
 			return url;
+
+		url = this.location(objectId) + "/" + url;
+		return bucket.blob(url)
+				.newPreSignedUrl(Blob.AccessMethod.valueOf(method));
+	}
+
+	@Override
+	public String resolveObjectResourceInternally(String objectId, String resourceId, String method) throws BWFLAException
+	{
+		var url = DigitalObjectArchive.super.resolveObjectResourceInternally(objectId, resourceId, method);
+		if (url == null || DataResolver.isAbsoluteUrl(url)){
+			return url;
+		}
 
 		url = this.location(objectId) + "/" + url;
 		return bucket.blob(url)

@@ -458,6 +458,12 @@ public class DigitalObjectFileArchive implements Serializable, DigitalObjectArch
 		}
 	}
 
+	@Override
+	public FileCollection getInternalReference(String objectId) throws BWFLAException
+	{
+		return getObjectReference(objectId);
+	}
+
 	private FileCollection describe(String objectId) {
 		if(objectId == null)
 			return null;
