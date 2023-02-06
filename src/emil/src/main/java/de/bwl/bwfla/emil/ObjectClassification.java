@@ -159,14 +159,8 @@ public class ObjectClassification {
         request.metadata = metadata;
         request.input = null;
         request.userCtx = this.getUserContext().clone();
-        try{
-            //this fixes classification with url + filename error
-            //TODO does ImageArchiveClient.create() always work?
-            request.imagearchive = ImageArchiveClient.create();
-        }
-        catch (Exception e){
-            LOG.warning("Could not create ImageArchiveClient!");
-        }
+        request.imagearchive = metadata.getImageArchive();
+
 
         var taskId = taskManager.submitTask(new ClassificationTask(request));
         LOG.info("Starting Classification Task with id " + taskId + " (URL + filename)");
@@ -194,14 +188,7 @@ public class ObjectClassification {
         request.noUpdate = noUpdate;
         request.forceProposal = forceProposal;
         request.userCtx = userctx.clone();
-        try{
-            //this fixes classification with fc error
-            //TODO does ImageArchiveClient.create() always work?
-            request.imagearchive = ImageArchiveClient.create();
-        }
-        catch (Exception e){
-            LOG.warning("Could not create ImageArchiveClient!");
-        }
+        request.imagearchive = metadata.getImageArchive();
 
         if(!forceCharacterization || noUpdate)
             try {
