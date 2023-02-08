@@ -67,6 +67,27 @@ public class SoftwareFileArchive implements Serializable, ISoftwareArchive
 	}
 
 	@Override
+	public boolean changeSoftwareLabel(String objectId, String newLabel)
+	{
+		log.info("Changing software label in SW Archive...");
+		final Path path = archivePath.resolve(objectId);
+
+		try {
+			SoftwarePackage swPackage = this.getSoftwarePackageByPath(path);
+			swPackage.setName(newLabel);
+			Files.deleteIfExists(path); //necessary, as new label can be shorter than old one -> faulty XML file
+			Files.write( path, swPackage.value(true).getBytes("UTF-8"), StandardOpenOption.CREATE);
+
+		}
+		catch (IOException | JAXBException e) {
+			log.warning("Updating Software Label failed!" + e);
+			return false;
+		}
+
+		return true;
+	}
+
+	@Override
 	public synchronized boolean addSoftwarePackage(SoftwarePackage software)
 	{
 		final String id = software.getObjectId();
@@ -199,7 +220,7 @@ public class SoftwareFileArchive implements Serializable, ISoftwareArchive
 			return SoftwarePackage.fromValue(new String(encoded, StandardCharsets.UTF_8), SoftwarePackage.class);
 		}
 		catch (Exception exception) {
-			log.warning("Reading software package '" + path.toString() + "' failed!");
+			log.warning("Reading software package '" + path.toString() + "' failed: " +  exception);
 			return null;
 		}
 	}

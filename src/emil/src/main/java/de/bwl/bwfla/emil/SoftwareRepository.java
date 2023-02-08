@@ -256,7 +256,7 @@ public class SoftwareRepository extends EmilRest
 
 			try {
 				SoftwarePackage software = swHelper.getSoftwarePackageById(swo.getObjectId());
-				if (software == null) {
+				if (software == null || software.isDeleted()) {
 					String archiveName = swo.getArchiveId();
 					if (archiveName == null) {
 						if (userctx != null && userctx.getUserId() != null) {
@@ -264,20 +264,6 @@ public class SoftwareRepository extends EmilRest
 							archiveName = userctx.getUserId();
 						}
 					}
-
-
-					//step 1
-					//private software -> public software
-					//dann object publizieren
-					//dann public object -> public software
-
-					// copy folder to public/default archive?
-
-					//the following commented code creates an error when storing an object as software
-					//I did some testing and encountered no problems without the additional
-					//"default" archive
-
-					//resolver fragt nach getObjectReference und sucht iso obwohl eigentlich nur 1 file gewollt ist
 
 					LOG.info("Trying archive '" + swo.getArchiveId() + "' for " + swo.getObjectId());
 					if (archiveName == null || archiveName.startsWith("user")) {

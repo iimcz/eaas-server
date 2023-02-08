@@ -73,6 +73,13 @@ public class SoftwareArchiveWS implements SoftwareArchiveWSRemote
 	}
 	
 	@Override
+	public boolean changeSoftwareLabel(String objectId, String newLabel)
+	{
+		ISoftwareArchive archive = SoftwareArchiveSingleton.getArchiveInstance();
+		return archive.changeSoftwareLabel(objectId, newLabel);
+	}
+
+	@Override
 	public String getName()
 	{
 		ISoftwareArchive archive = SoftwareArchiveSingleton.getArchiveInstance();

@@ -43,6 +43,13 @@ public class SoftwareArchiveHelper
 		
 		return archive.addSoftwarePackage(software);
 	}
+
+	public boolean changeSoftwareLabel(String objectId, String newLabel) throws BWFLAException
+	{
+		this.connectArchive();
+
+		return archive.changeSoftwareLabel(objectId, newLabel);
+	}
 	
 	public int getNumSoftwareSeatsById(String id) throws BWFLAException
 	{

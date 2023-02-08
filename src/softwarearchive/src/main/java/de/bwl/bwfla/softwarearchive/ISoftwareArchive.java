@@ -30,6 +30,7 @@ public interface ISoftwareArchive
 {
 	public boolean hasSoftwarePackage(String id);
 	public boolean addSoftwarePackage(SoftwarePackage software);
+	public boolean changeSoftwareLabel(String objectId, String newLabel);
 	public int getNumSoftwareSeatsById(String id);
 	public void deleteSoftware(String id);
 	public SoftwarePackage getSoftwarePackageById(String id);

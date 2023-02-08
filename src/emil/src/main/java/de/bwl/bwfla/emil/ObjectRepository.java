@@ -410,7 +410,11 @@ public class ObjectRepository extends EmilRest
 			try {
 				objHelper.updateObjectLabel(archiveId, objectId, req.getLabel());
 
-				//TODO check if object is Software and change SoftwareLabel accordingly
+				var swPackage = swHelper.getSoftwarePackageById(objectId);
+				if (swPackage != null){
+					LOG.info("Object is Software, Changing SW Label also...");
+					swHelper.changeSoftwareLabel(objectId, req.getLabel());
+				}
 			}
 			catch (BWFLAException e) {
 				throw new RuntimeException(e);

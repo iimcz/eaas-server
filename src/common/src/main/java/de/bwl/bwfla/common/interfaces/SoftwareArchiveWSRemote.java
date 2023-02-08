@@ -12,6 +12,7 @@ public interface SoftwareArchiveWSRemote
 	public boolean hasSoftwarePackage(String id);
 
 	public boolean addSoftwarePackage(SoftwarePackage software);
+	public boolean changeSoftwareLabel(String objectId, String newLabel);
 	
 	public int getNumSoftwareSeatsById(String id);
 	public int getNumSoftwareSeatsForTenant(String id, String tenant) throws BWFLAException;
