@@ -250,61 +250,71 @@ public class SoftwareRepository extends EmilRest
 		@Produces(MediaType.APPLICATION_JSON)
 		public Response create(EmilSoftwareObject swo)
 		{
-			// TODO: maybe, the logic should be split in two separate functions (create() and update())?
-
 			LOG.info("Creating new software-package...");
 
 			try {
-				SoftwarePackage software = swHelper.getSoftwarePackageById(swo.getObjectId());
-				if (software == null || software.isDeleted()) {
-					String archiveName = swo.getArchiveId();
-					if (archiveName == null) {
-						if (userctx != null && userctx.getUserId() != null) {
-							LOG.info("Using user context: " + userctx.getUserId());
-							archiveName = userctx.getUserId();
-						}
+
+				var software = new SoftwarePackage();
+
+				String archiveName = swo.getArchiveId();
+				LOG.info("Got archive name from request: " + archiveName);
+
+				if (archiveName == null) {
+					LOG.info("Got userctx: " + userctx);
+					if (userctx != null && userctx.getUserId() != null) {
+						LOG.info("Using user context: " + userctx.getUserId());
+						archiveName = "user-" + userctx.getUserId(); //TODO can "user-" be used here generally? Potentially migration needed
+						LOG.info("Setting archive name to: " + archiveName);
 					}
-
-					LOG.info("Trying archive '" + swo.getArchiveId() + "' for " + swo.getObjectId());
-					if (archiveName == null || archiveName.startsWith("user")) {
-
-						LOG.info("Object needs to be reimported to the default archive, so that it is able to be published as software...");
-						DigitalObjectMetadata md = objHelper.getObjectMetadata(archiveName, swo.getObjectId());
-
-						if (md == null) {
-							LOG.severe("Getting object metadata failed!");
-							return Emil.errorMessageResponse("Failed to access object!");
-						}
-
-						// modify metadata to use for import
-						// necessary as we need presigned URLS for the actual files and not packed-iso
-						Mets m = Mets.fromValue(md.getMetsData(), Mets.class);
-						var fs = m.getFileSec();
-						var fgrp = fs.getFileGrp();
-						for (var f : fgrp){
-							var files = f.getFile();
-							for (FileType actFile : files){
-								var resolved = objHelper.resolveObjectResourceInternally(archiveName, swo.getObjectId(), actFile.getID(), "GET");
-								FileType.FLocat location = actFile.getFLocat().get(0);
-								location.setHref(resolved);
-
-							}
-						}
-
-						objHelper.importFromMetadata("default", m.toString());
-						archiveName = "default";
-					}
-
-					software = new SoftwarePackage();
-					software.setObjectId(swo.getObjectId());
-					software.setArchive(archiveName);
-					software.setName(swo.getLabel());
 				}
 
-				software.setPublic(swo.getIsPublic());
-				software.setDeleted(false);
-				LOG.info("Setting software-package's visibility to: " + ((software.isPublic()) ? "public" : "private"));
+				//object needs to be reimported to default (zero conf) archive if:
+				//1. archive is null
+				//2. software is from a user object and needs to be published
+				// Software that is from a user object but is private, does NOT need to be reimported!
 
+				if (archiveName == null || (archiveName.startsWith("user") && swo.getIsPublic())) {
+
+					LOG.info("Object needs to be reimported to the default archive, so that it is able to be published as software...");
+					DigitalObjectMetadata md = objHelper.getObjectMetadata(archiveName, swo.getObjectId());
+
+					if (md == null) {
+						LOG.severe("Getting object metadata failed!");
+						return Emil.errorMessageResponse("Failed to access object!");
+					}
+
+					// modify metadata to use for import
+					// necessary as we need presigned URLS for the actual files and not packed-iso
+					Mets m = Mets.fromValue(md.getMetsData(), Mets.class);
+					var fs = m.getFileSec();
+					var fgrp = fs.getFileGrp();
+					for (var f : fgrp){
+						var files = f.getFile();
+						for (FileType actFile : files){
+							var resolved = objHelper.resolveObjectResourceInternally(archiveName, swo.getObjectId(), actFile.getID(), "GET");
+							FileType.FLocat location = actFile.getFLocat().get(0);
+							location.setHref(resolved);
+						}
+					}
+
+					objHelper.importFromMetadata("default", m.toString()); //TODO use "zero conf" here?
+					archiveName = "default";
+				}
+
+
+				if(software.isPublic() && !swo.getIsPublic()){
+					LOG.warning("Trying to set public software to back to private. This is prohibited! SW will stay public.");
+				}
+				else{
+					software.setPublic(swo.getIsPublic());
+					LOG.info("Setting software-package's visibility to: " + ((software.isPublic()) ? "public" : "private"));
+				}
+
+
+				software.setObjectId(swo.getObjectId());
+				software.setArchive(archiveName);
+				software.setName(swo.getLabel());
+				software.setDeleted(false);
 				software.setNumSeats(swo.getAllowedInstances());
 				software.setLicence(swo.getLicenseInformation());
 				software.setIsOperatingSystem(swo.getIsOperatingSystem());
@@ -365,6 +375,16 @@ public class SoftwareRepository extends EmilRest
 		{
 			LOG.info("Listing all software-package descriptions...");
 
+			String loggedInUserArchiveName;
+
+			if (userctx != null && userctx.getUserId() != null) {
+				loggedInUserArchiveName = "user-" + userctx.getUserId();
+				LOG.info("Listing software that is accessible to user: " + userctx.getUserId());
+			}
+			else {
+				loggedInUserArchiveName = null;
+			}
+
 			try {
 				final Stream<SoftwareDescription> descriptions = swHelper.getSoftwareDescriptions();
 				if (descriptions == null) {
@@ -379,11 +399,29 @@ public class SoftwareRepository extends EmilRest
 						json.write("status", "0");
 						json.writeStartArray("descriptions");
 						descriptions.forEach((desc) -> {
+
+							var archiveId = (desc.getArchiveId() != null) ? desc.getArchiveId() : "default";
+
+							if(!(archiveId.equals("default") || archiveId.equals("zero conf"))){
+								//this is reached if the object archive for the software is a (private) user-archive
+
+								if(loggedInUserArchiveName == null){
+									//if no user context is provided, only show default/public software
+									return;
+								}
+
+								else if(!archiveId.equals(loggedInUserArchiveName)){
+									//only show private software where the corresponding archive belongs to the user
+									LOG.info("Not showing " + desc.getSoftwareId() + "to user: " + loggedInUserArchiveName);
+									return;
+								}
+							}
+
 							json.writeStartObject();
 							json.write("id", desc.getSoftwareId());
 							json.write("label", desc.getLabel());
 							json.write("isPublic", desc.isPublic());
-							json.write("archiveId", (desc.getArchiveId() != null) ? desc.getArchiveId() : "default");
+							json.write("archiveId", archiveId);
 							json.write("isOperatingSystem", desc.getIsOperatingSystem());
 							json.writeEnd();
 						});
