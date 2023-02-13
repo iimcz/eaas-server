@@ -52,7 +52,6 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.StreamingOutput;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.logging.Level;
 import java.util.stream.Stream;
 
@@ -84,17 +83,46 @@ public class SoftwareRepository extends EmilRest
 
 
     @PostConstruct
-    private void inititialize()
+    private void initialize()
 	{
 		try {
 			swHelper = new SoftwareArchiveHelper(softwareArchive);
 			objHelper = new ObjectArchiveHelper(objectArchive);
 			imageProposer = new ImageProposer(imageProposerService + "/imageproposer");
+
+			migratePublicSoftwareToZeroConf();
 		}
 		catch (IllegalArgumentException error) {
 			LOG.log(Level.WARNING, "Initializing software-repository failed!", error);
 		}
-    }
+		catch (BWFLAException e) {
+			LOG.warning("Error while migrating software!\n" + e);
+		}
+	}
+
+	private void migratePublicSoftwareToZeroConf() throws BWFLAException
+	{
+		LOG.info("Checking if archive is properly set for public software...");
+		final Stream<SoftwarePackage> packages = swHelper.getSoftwarePackages();
+
+		packages.filter(SoftwarePackage::isPublic)
+				.filter(sw -> !sw.getArchive().equals("zero conf"))
+				.forEach(sw -> {
+					LOG.info("Found software that needs to be migrated: " + sw.getPureId());
+					var emilSoftwareObject = new EmilSoftwareObject();
+					emilSoftwareObject.setIsPublic(true);
+					emilSoftwareObject.setArchiveId("zero conf");
+					emilSoftwareObject.setId(sw.getPureId());
+					emilSoftwareObject.setLabel(sw.getName());
+					emilSoftwareObject.setAllowedInstances(sw.getNumSeats());
+					emilSoftwareObject.setObjectId(sw.getObjectId());
+					emilSoftwareObject.setQID(sw.getQID());
+					emilSoftwareObject.setLicenseInformation(sw.getLicence());
+					emilSoftwareObject.setIsOperatingSystem(sw.getIsOperatingSystem());
+					emilSoftwareObject.setNativeFMTs(sw.getSupportedFileFormats());
+					packages().create(emilSoftwareObject);
+				});
+	}
 
 	public SoftwareCollection getSoftwareCollection()
 	{
