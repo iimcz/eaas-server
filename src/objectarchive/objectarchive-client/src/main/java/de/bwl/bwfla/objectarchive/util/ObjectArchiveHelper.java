@@ -95,6 +95,12 @@ public class ObjectArchiveHelper {
 		return archive.getObjectMetadata(_archive, id);
 	}
 
+	public DigitalObjectMetadata getObjectMetadataUnresolved(String _archive, String id) throws BWFLAException
+	{
+		connectArchive();
+		return archive.getObjectMetadataUnresolved(_archive, id);
+	}
+
 	public void updateObjectLabel(String _archive, String id, String newLabel) throws BWFLAException
 	{
 		connectArchive();

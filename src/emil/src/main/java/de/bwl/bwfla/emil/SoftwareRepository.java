@@ -36,6 +36,7 @@ import de.bwl.bwfla.objectarchive.util.ObjectArchiveHelper;
 import de.bwl.bwfla.softwarearchive.util.SoftwareArchiveHelper;
 import gov.loc.mets.FileType;
 import gov.loc.mets.Mets;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.tamaya.inject.api.Config;
 
 import javax.annotation.PostConstruct;
@@ -250,7 +251,7 @@ public class SoftwareRepository extends EmilRest
 		@Produces(MediaType.APPLICATION_JSON)
 		public Response create(EmilSoftwareObject swo)
 		{
-			LOG.info("Creating new software-package...");
+			LOG.info("Creating/Changing software-package...");
 
 			try {
 
@@ -260,7 +261,6 @@ public class SoftwareRepository extends EmilRest
 				LOG.info("Got archive name from request: " + archiveName);
 
 				if (archiveName == null) {
-					LOG.info("Got userctx: " + userctx);
 					if (userctx != null && userctx.getUserId() != null) {
 						LOG.info("Using user context: " + userctx.getUserId());
 						archiveName = "user-" + userctx.getUserId(); //TODO can "user-" be used here generally? Potentially migration needed
@@ -268,7 +268,7 @@ public class SoftwareRepository extends EmilRest
 					}
 				}
 
-				//object needs to be reimported to default (zero conf) archive if:
+				//object needs to be reimported to 'zero conf' archive if:
 				//1. archive is null
 				//2. software is from a user object and needs to be published
 				// Software that is from a user object but is private, does NOT need to be reimported!
@@ -276,7 +276,7 @@ public class SoftwareRepository extends EmilRest
 				if (archiveName == null || (archiveName.startsWith("user") && swo.getIsPublic())) {
 
 					LOG.info("Object needs to be reimported to the default archive, so that it is able to be published as software...");
-					DigitalObjectMetadata md = objHelper.getObjectMetadata(archiveName, swo.getObjectId());
+					DigitalObjectMetadata md = objHelper.getObjectMetadataUnresolved(archiveName, swo.getObjectId());
 
 					if (md == null) {
 						LOG.severe("Getting object metadata failed!");
@@ -291,14 +291,23 @@ public class SoftwareRepository extends EmilRest
 					for (var f : fgrp){
 						var files = f.getFile();
 						for (FileType actFile : files){
+
+							//to properly reimport an object to zero conf we need to
+							//1. get the internal representation of the objects resources (presigned minio URLs)
+							//2. set the id to the original file name which can be retrieved through the original href of the file
+							//a file with id: 'FID-12345...' and href: 'file/myfile.txt'
+							//will then be imported with id: 'myfile.txt' and href: 'http://minio:9000/object-archive...'
+
 							var resolved = objHelper.resolveObjectResourceInternally(archiveName, swo.getObjectId(), actFile.getID(), "GET");
+							var loc = actFile.getFLocat().get(0).getHref();
+							actFile.setID(StringUtils.substringAfterLast(loc, "/"));
 							FileType.FLocat location = actFile.getFLocat().get(0);
 							location.setHref(resolved);
 						}
 					}
 
-					objHelper.importFromMetadata("default", m.toString()); //TODO use "zero conf" here?
-					archiveName = "default";
+					objHelper.importFromMetadata("zero conf", m.toString());
+					archiveName = "zero conf";
 				}
 
 

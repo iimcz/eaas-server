@@ -48,6 +48,8 @@ public interface DigitalObjectArchive
 	String getName();
 	Path getLocalPath();
 	DigitalObjectMetadata getMetadata(String objectId) throws BWFLAException;
+	DigitalObjectMetadata getUnresolvedMetadata(String objectId) throws BWFLAException;
+
 	Stream<DigitalObjectMetadata> getObjectMetadata();
 	boolean isDefaultArchive();
 

@@ -520,6 +520,17 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 					.resolve(basename, objectId, resourceId);
 		};
 
+		return getMetadataHelper(objectId, metsExportPrefixer);
+	}
+
+	@Override
+	public DigitalObjectMetadata getUnresolvedMetadata(String objectId) throws BWFLAException
+	{
+		return getMetadataHelper(objectId, null);
+	}
+
+	private DigitalObjectMetadata getMetadataHelper(String objectId, BiFunction<String, String, String> metsExportPrefixer) throws BWFLAException
+	{
 		final var data = this.loadMetsData(objectId);
 		final var mets = MetsUtil.export(data.getMets(), metsExportPrefixer);
 		final var md = new DigitalObjectMetadata(mets);

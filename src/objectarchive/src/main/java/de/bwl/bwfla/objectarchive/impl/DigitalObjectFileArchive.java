@@ -597,6 +597,12 @@ public class DigitalObjectFileArchive implements Serializable, DigitalObjectArch
 		return md;
 	}
 
+	@Override
+	public DigitalObjectMetadata getUnresolvedMetadata(String objectId) throws BWFLAException
+	{
+		return getMetadata(objectId);
+	}
+
 	private MetsObject loadMetsData(String objectId) throws BWFLAException {
 		Path targetDir = resolveMetadatTarget(objectId);
 		Path metsPath = targetDir.resolve(METS_MD_FILENAME);

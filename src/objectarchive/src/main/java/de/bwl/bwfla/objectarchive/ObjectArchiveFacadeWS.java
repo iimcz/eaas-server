@@ -163,6 +163,11 @@ public class ObjectArchiveFacadeWS
 		return a.getMetadata(id);
 	}
 
+	public DigitalObjectMetadata getObjectMetadataUnresolved(String archive, String id) throws BWFLAException {
+		DigitalObjectArchive a = getArchive(archive);
+		return a.getUnresolvedMetadata(id);
+	}
+
 	public @XmlMimeType("application/xml") DataHandler getObjectMetadataCollection(String archive) throws BWFLAException {
 		final DigitalObjectArchive a = getArchive(archive);
 		final Stream<DigitalObjectMetadata> objects = a.getObjectMetadata();

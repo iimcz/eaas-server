@@ -326,6 +326,12 @@ public class DigitalObjectPreservicaArchive implements Serializable, DigitalObje
 	}
 
 	@Override
+	public DigitalObjectMetadata getUnresolvedMetadata(String objectId) throws BWFLAException
+	{
+		return getMetadata(objectId);
+	}
+
+	@Override
 	public Stream<DigitalObjectMetadata> getObjectMetadata() {
 
 		return this.getObjectIds()
