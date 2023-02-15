@@ -1,5 +1,7 @@
 package de.bwl.bwfla.emil.tasks;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.openslx.eaas.common.databind.DataUtils;
 import com.openslx.eaas.imagearchive.ImageArchiveClient;
 import de.bwl.bwfla.common.datatypes.identification.DiskType;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
@@ -263,6 +265,13 @@ public class ClassificationTask extends BlockingTask<Object>
             return new ClassificationResult(new BWFLAException(e));
         }
 
+        try {
+            log.info(">>>>>>>>>>>>>>>>>>>>>>>>> Got this proposal:\n" + DataUtils.json().writer(true).writeValueAsString(proposal));
+        }
+        catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
         List<EnvironmentInfo> environmentList;
         List<ClassificationResult.OperatingSystem> suggested = new ArrayList<>();;
 
@@ -275,11 +284,14 @@ public class ClassificationTask extends BlockingTask<Object>
         List<EnvironmentInfo> defaultList = new ArrayList<>();
         try {
             for (String osId : proposal.getSuggested().keySet()) {
+                log.info("Checking osId: " + osId);
                 ClassificationResult.OperatingSystem os = new ClassificationResult.OperatingSystem(osId, proposal.getSuggested().get(osId));
                 String envId = envHelper.getDefaultEnvironment(osId);
                 if (envId != null) {
+                    log.info("Checking if default env " + envId + "is suitable...");
                     EmilEnvironment emilEnv = emilEnvRepo.getEmilEnvironmentById(envId, request.userCtx);
                     if (emilEnv != null) {
+                        log.info("Got suitable defualt env: " + envId);
                         EnvironmentInfo info = new EnvironmentInfo(emilEnv.getEnvId(), emilEnv.getTitle());
                         os.setDefaultEnvironment(info);
 
@@ -339,7 +351,12 @@ public class ClassificationTask extends BlockingTask<Object>
 //
 //        response.setEnvironmentList(environmentList);
 //>>>>>>> master
-        LOG.info("Finished proposing environments!");
+        try {
+            LOG.info("Finished proposing environments, returning: \n" + DataUtils.json().writer(true).writeValueAsString(response));
+        }
+        catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
         return response;
     }
 

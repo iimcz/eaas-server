@@ -21,6 +21,7 @@ package de.bwl.bwfla.imageproposer.impl;
 
 import java.util.*;
 
+import com.openslx.eaas.common.databind.DataUtils;
 import de.bwl.bwfla.common.datatypes.identification.DiskType;
 import de.bwl.bwfla.common.datatypes.identification.OperatingSystemInformation;
 import de.bwl.bwfla.common.taskmanager.BlockingTask;
@@ -118,10 +119,12 @@ public class ProposalTask extends BlockingTask<Object>
 				}
 			}
 
+			log.info("Getting OSs for: " + ext);
 			Set<String> os = index.getOsRequirementByExt(ext);
 			if (os != null) {
 				for (String osId : os) {
-					OperatingSystemInformation operatingSystemInformation = index.getOperatingSystemByPUID(osId);
+					log.info("\t Checking (ext): " + osId);
+					OperatingSystemInformation operatingSystemInformation = index.getOperatingSystemInfo(osId);
 					if(operatingSystemInformation != null)
 						missing.put(operatingSystemInformation.getId(), operatingSystemInformation.getLabel());
 				}
@@ -162,10 +165,12 @@ public class ProposalTask extends BlockingTask<Object>
 					}
 				}
 
+				log.info("Getting OSs for: (puid)" + entry.getType());
 				Set<String> os = index.getOsRequirementByPUID(entry.getType());
 				if (os != null) {
 					for (String osId : os) {
-						OperatingSystemInformation operatingSystemInformation = index.getOperatingSystemByPUID(osId);
+						log.info("\t Checking: " + osId);
+						OperatingSystemInformation operatingSystemInformation = index.getOperatingSystemInfo(osId);
 						if(operatingSystemInformation != null)
 							missing.put(operatingSystemInformation.getId(), operatingSystemInformation.getLabel());
 					}
@@ -207,6 +212,7 @@ public class ProposalTask extends BlockingTask<Object>
 		
 		log.info("Propose algorithm finished! " + images.size() + " suitable environment(s) found:");
 
+		log.info("Missing: " + DataUtils.json().writer(true).writeValueAsString(missing));
 
 		if (!missing.isEmpty()) {
 			log.info("No suitable environments found for the following format(s):");
