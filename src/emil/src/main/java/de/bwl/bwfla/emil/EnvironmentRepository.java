@@ -38,6 +38,8 @@ import com.openslx.eaas.migration.IMigratable;
 import com.openslx.eaas.migration.MigrationRegistry;
 import com.openslx.eaas.migration.MigrationUtils;
 import com.openslx.eaas.migration.config.MigrationConfig;
+import com.openslx.eaas.generalization.GeneralizationPatchesClient;
+import com.openslx.eaas.generalization.ImageGeneralizationPatchRequest;
 import com.webcohesion.enunciate.metadata.rs.TypeHint;
 import de.bwl.bwfla.api.imagearchive.*;
 import de.bwl.bwfla.common.datatypes.identification.OperatingSystems;
@@ -51,8 +53,6 @@ import de.bwl.bwfla.emil.datatypes.EmilObjectEnvironment;
 import de.bwl.bwfla.emil.datatypes.EnvironmentCreateRequest;
 import de.bwl.bwfla.emil.datatypes.EnvironmentDeleteRequest;
 import de.bwl.bwfla.common.services.rest.ErrorInformation;
-import de.bwl.bwfla.emil.datatypes.ImageGeneralizationPatchRequest;
-import de.bwl.bwfla.emil.datatypes.ImageGeneralizationPatchResponse;
 import de.bwl.bwfla.emil.datatypes.ImportImageRequest;
 import de.bwl.bwfla.emil.datatypes.rest.*;
 import de.bwl.bwfla.emil.datatypes.rest.ReplicateImagesResponse;
@@ -148,6 +148,8 @@ public class EnvironmentRepository extends EmilRest
 
 	private SoftwareArchiveHelper swHelper;
 
+	private GeneralizationPatchesClient patchesClient;
+
 	@Inject
 	private EmilObjectData objects;
 
@@ -159,6 +161,7 @@ public class EnvironmentRepository extends EmilRest
 			imagearchive = emilEnvRepo.getImageArchive();
 			imageProposer = new ImageProposer(imageProposerService + "/imageproposer");
 			swHelper = new SoftwareArchiveHelper(softwareArchive);
+			patchesClient = new GeneralizationPatchesClient(); //TODO pass URL here?
 		}
 		catch (Exception error) {
 			throw new RuntimeException(error);
@@ -1211,12 +1214,11 @@ public class EnvironmentRepository extends EmilRest
 		@GET
 		@Secured(roles={Role.RESTRICTED})
 		@Produces(MediaType.APPLICATION_JSON)
-		public List<ImageGeneralizationPatchDescription> list() throws BWFLAException
+		public Response list() throws BWFLAException
 		{
 			LOG.info("Listing image-generalization patches...");
 
-			// TODO: fix response in case of errors!
-			return envdb.getImageGeneralizationPatches();
+			return patchesClient.getPatches();
 		}
 
 		/** Try to apply a patch to the specified image. */
@@ -1228,41 +1230,8 @@ public class EnvironmentRepository extends EmilRest
 		public Response apply(@PathParam("patchId") String patchId, ImageGeneralizationPatchRequest request)
 		{
 			LOG.info("Applying image-generalization patch...");
-			try {
-				final var origImage = imagearchive.api()
-						.v2()
-						.metadata(MetaDataKindV2.IMAGES)
-						.fetch(request.getImageId(), ImageArchiveMappers.JSON_TREE_TO_IMAGE_METADATA);
 
-				// TODO: port patching code to use new image-achive!
-				final String newImageId = (request.getArchive() != null) ?
-						envdb.createPatchedImage(request.getArchive(), request.getImageId(), request.getImageType(), patchId)
-						: envdb.createPatchedImage(request.getImageId(), request.getImageType(), patchId);
-
-				final var newImage = new ImageMetaData()
-						.setId(newImageId)
-						.setFileSystemType(origImage.fileSystemType())
-						.setLabel(origImage.label() + " (generalized)")
-						.setCategory(request.getImageType().value());
-
-				final var options = new ReplaceOptionsV2()
-						.setLocation(request.getArchive());
-
-				imagearchive.api()
-						.v2()
-						.metadata(MetaDataKindV2.IMAGES)
-						.replace(newImageId, newImage, ImageArchiveMappers.OBJECT_TO_JSON_TREE, options);
-
-				final var response = new ImageGeneralizationPatchResponse();
-				response.setStatus("0");
-				response.setImageId(newImageId);
-				return Response.ok()
-						.entity(response)
-						.build();
-			}
-			catch (Throwable error) {
-				return EnvironmentRepository.internalErrorResponse(error);
-			}
+			return patchesClient.patchImage(patchId, request);
 		}
 	}
 

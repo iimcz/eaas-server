@@ -1,0 +1,3 @@
+<jboss-web>
+    <context-root>patches</context-root>
+</jboss-web>

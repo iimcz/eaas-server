@@ -16,8 +16,7 @@
  * along with the Emulation-as-a-Software framework.
  * If not, see <http://www.gnu.org/licenses/>.
  */
-
-package de.bwl.bwfla.emil.datatypes;
+package com.openslx.eaas.generalization;
 
 import de.bwl.bwfla.common.utils.jaxb.JaxbType;
 

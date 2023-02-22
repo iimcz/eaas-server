@@ -16,9 +16,9 @@
  * along with the Emulation-as-a-Software framework.
  * If not, see <http://www.gnu.org/licenses/>.
  */
+package com.openslx.eaas.generalization;
 
-package de.bwl.bwfla.emil.datatypes;
-
+import de.bwl.bwfla.api.imagearchive.ImageType;
 import de.bwl.bwfla.common.utils.jaxb.JaxbType;
 
 import javax.xml.bind.annotation.XmlAccessType;
@@ -26,8 +26,8 @@ import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
 
-import de.bwl.bwfla.api.imagearchive.ImageType;
 
+//TODO restructe as json not xml ?
 
 @XmlRootElement
 @XmlAccessorType(XmlAccessType.NONE)
@@ -39,6 +39,7 @@ public class ImageGeneralizationPatchRequest extends JaxbType
 	@XmlElement
 	private String imageId;
 
+	//TODO remove this dependency and use String?
 	@XmlElement
 	private ImageType imageType;
 

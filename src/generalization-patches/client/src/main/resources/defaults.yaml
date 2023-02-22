@@ -1,0 +1,2 @@
+generalization:
+  rest_url: "http://eaas:8080/patches/api/v1"
