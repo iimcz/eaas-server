@@ -169,7 +169,7 @@ public class ProposalTask extends BlockingTask<Object>
 				Set<String> os = index.getOsRequirementByPUID(entry.getType());
 				if (os != null) {
 					for (String osId : os) {
-						log.info("\t Checking: " + osId);
+						log.info("\t Checking: " + osId); //FIXME this is a problem
 						OperatingSystemInformation operatingSystemInformation = index.getOperatingSystemInfo(osId);
 						if(operatingSystemInformation != null)
 							missing.put(operatingSystemInformation.getId(), operatingSystemInformation.getLabel());

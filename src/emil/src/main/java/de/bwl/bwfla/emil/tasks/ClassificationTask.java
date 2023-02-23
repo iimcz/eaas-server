@@ -282,7 +282,7 @@ public class ClassificationTask extends BlockingTask<Object>
         }
 
         List<EnvironmentInfo> defaultList = new ArrayList<>();
-        try {
+        try {//FIXME how is "missing" the "suggested" list now, here also the os check before something is added to suggested is weird?! why?
             for (String osId : proposal.getSuggested().keySet()) {
                 log.info("Checking osId: " + osId);
                 ClassificationResult.OperatingSystem os = new ClassificationResult.OperatingSystem(osId, proposal.getSuggested().get(osId));
@@ -291,12 +291,12 @@ public class ClassificationTask extends BlockingTask<Object>
                     log.info("Checking if default env " + envId + "is suitable...");
                     EmilEnvironment emilEnv = emilEnvRepo.getEmilEnvironmentById(envId, request.userCtx);
                     if (emilEnv != null) {
-                        log.info("Got suitable defualt env: " + envId);
+                        log.info("Got suitable default env: " + envId);
                         EnvironmentInfo info = new EnvironmentInfo(emilEnv.getEnvId(), emilEnv.getTitle());
                         os.setDefaultEnvironment(info);
 
                         EnvironmentInfo infoL = new EnvironmentInfo(emilEnv.getEnvId(), emilEnv.getTitle() + " (D)");
-                        if(!defaultList.stream().filter(o -> o.getId().equals(infoL.getId())).findFirst().isPresent())
+                        if(defaultList.stream().noneMatch(o -> o.getId().equals(infoL.getId())))
                             defaultList.add(infoL);
                     }
                 }
@@ -319,7 +319,7 @@ public class ClassificationTask extends BlockingTask<Object>
         }
         response.setSuggested(suggested);
 
-        if(defaultList.size() > 0) {
+        if(defaultList.size() > 0) { //FIXME this prefers default envs (which makes sense up to the point where other envs could be better!!!)
             for(EnvironmentInfo info : environmentList)
             {
                 if(info.isObjectEnvironment()) {

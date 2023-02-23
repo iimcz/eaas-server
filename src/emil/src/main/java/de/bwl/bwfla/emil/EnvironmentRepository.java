@@ -156,6 +156,9 @@ public class EnvironmentRepository extends EmilRest
 	@Inject
 	private EmilObjectData objects;
 
+	@Inject
+	private DefaultEnvironmentsBackend defaultEnvs;
+
 
 	@PostConstruct
 	private void initialize()
@@ -995,17 +998,15 @@ public class EnvironmentRepository extends EmilRest
 		@Produces(MediaType.APPLICATION_JSON)
 		public Map<String, String> list()
 		{
+
+
 			LOG.info("Listing default environments...");
 
 			Map<String, String> map = new HashMap<>();
-			try {
-				List<DefaultEntry> defaultEnvironments = envdb.getDefaultEnvironments();
-				for (DefaultEntry e : defaultEnvironments)
-					map.put(e.getKey(), e.getValue());
-			}
-			catch (BWFLAException error) {
-				LOG.log(Level.WARNING, "Loading default environments failed!", error);
-			}
+			List<de.bwl.bwfla.emil.datatypes.DefaultEnvironments.DefaultEntry> defaultEnvironments = defaultEnvs.getDefaultEnvironments().getMap();
+
+			for (var e : defaultEnvironments)
+				map.put(e.getKey(), e.getValue());
 
 			return map;
 		}
@@ -1018,14 +1019,9 @@ public class EnvironmentRepository extends EmilRest
 		{
 			LOG.info("Looking up default environment for OS '" + osId + "'...");
 
-			try {
-				DefaultEnvironmentResponse response = new DefaultEnvironmentResponse();
-				response.setEnvId(envdb.getDefaultEnvironment(osId));
-				return response;
-			}
-			catch (BWFLAException error) {
-				return new DefaultEnvironmentResponse(error);
-			}
+			DefaultEnvironmentResponse response = new DefaultEnvironmentResponse();
+			response.setEnvId(defaultEnvs.getDefaultEnvironment(osId));
+			return response;
 		}
 
 		/** Set default environment for a specific operating system ID */
@@ -1038,7 +1034,7 @@ public class EnvironmentRepository extends EmilRest
 			LOG.info("Setting default environment for OS '" + osId + "'...");
 
 			try {
-				envdb.setDefaultEnvironment(osId, envId);
+				defaultEnvs.setDefaultEnvironment(osId,envId);
 				return new EmilResponseType();
 			}
 			catch (BWFLAException error) {

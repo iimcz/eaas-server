@@ -299,6 +299,7 @@ public class ImageArchiveBackend implements Comparable<ImageArchiveBackend>
 		return iwdArchive.addRecordingFile(envId, traceId, data);
 	}
 
+	@Deprecated
 	public String getDefaultEnvironment(String osId)
 	{
 		if(osId == null)
@@ -308,6 +309,7 @@ public class ImageArchiveBackend implements Comparable<ImageArchiveBackend>
 		}
 	}
 
+	@Deprecated
 	public DefaultEnvironments getDefaultEnvironments()
 	{
 		synchronized (defaultEnvironments) {
@@ -328,6 +330,7 @@ public class ImageArchiveBackend implements Comparable<ImageArchiveBackend>
 		}
 	}
 
+	@Deprecated
 	public synchronized void setDefaultEnvironment(String osId, String envId) throws BWFLAException
 	{
 		synchronized (defaultEnvironments) {
