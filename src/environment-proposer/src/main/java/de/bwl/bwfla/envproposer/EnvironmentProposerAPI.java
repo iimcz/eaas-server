@@ -46,6 +46,7 @@ import de.bwl.bwfla.envproposer.impl.TaskManager;
 import de.bwl.bwfla.envproposer.impl.UserData;
 import de.bwl.bwfla.restutils.ResponseUtils;
 
+//FIXME remove this?
 @Deprecated
 @Path("api/v1")
 public class EnvironmentProposerAPI

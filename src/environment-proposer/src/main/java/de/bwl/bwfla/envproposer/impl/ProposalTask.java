@@ -68,7 +68,7 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
+//FIXME Can this be deprecated/removed? Only used in deprecated Envproposer
 public class ProposalTask extends BlockingTask<Object>
 {
 	private final ProposalRequest request;

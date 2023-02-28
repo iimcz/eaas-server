@@ -1,7 +1,5 @@
 package de.bwl.bwfla.emil.tasks;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.openslx.eaas.common.databind.DataUtils;
 import com.openslx.eaas.imagearchive.ImageArchiveClient;
 import de.bwl.bwfla.common.datatypes.identification.DiskType;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
@@ -31,10 +29,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+//This is the currently used ClassificationTask that gets executed when Classification is started via UI
 public class ClassificationTask extends BlockingTask<Object>
 {
-
-
     private static final Logger LOG = Logger.getLogger(ClassificationTask.class.getName());
 
     public ClassificationTask(ClassifyObjectRequest req)
@@ -265,13 +262,6 @@ public class ClassificationTask extends BlockingTask<Object>
             return new ClassificationResult(new BWFLAException(e));
         }
 
-        try {
-            log.info(">>>>>>>>>>>>>>>>>>>>>>>>> Got this proposal:\n" + DataUtils.json().writer(true).writeValueAsString(proposal));
-        }
-        catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
-
         List<EnvironmentInfo> environmentList;
         List<ClassificationResult.OperatingSystem> suggested = new ArrayList<>();;
 
@@ -281,8 +271,10 @@ public class ClassificationTask extends BlockingTask<Object>
             return new ClassificationResult(new BWFLAException(e));
         }
 
+        //this code checks whether OSs suggestions were returned from the proposal and tries to find
+        //the according default environments, because those are preferred
         List<EnvironmentInfo> defaultList = new ArrayList<>();
-        try {//FIXME how is "missing" the "suggested" list now, here also the os check before something is added to suggested is weird?! why?
+        try {
             for (String osId : proposal.getSuggested().keySet()) {
                 log.info("Checking osId: " + osId);
                 ClassificationResult.OperatingSystem os = new ClassificationResult.OperatingSystem(osId, proposal.getSuggested().get(osId));
@@ -302,6 +294,7 @@ public class ClassificationTask extends BlockingTask<Object>
                 }
                 suggested.add(os);
             }
+            //this code suggests the global default environment if it is set
             if(defaultList.isEmpty())
             {
                 String envId = envHelper.getDefaultEnvironment(null);
@@ -317,46 +310,27 @@ public class ClassificationTask extends BlockingTask<Object>
         {
             LOG.log(Level.SEVERE, e.getMessage(), e);
         }
-        response.setSuggested(suggested);
 
-        if(defaultList.size() > 0) { //FIXME this prefers default envs (which makes sense up to the point where other envs could be better!!!)
+        //suggested will always only contain operating systems and NOT environments!
+        //but only if an OS is at least as "good" (supports >= types) than environments with software installed
+        response.setSuggested(suggested);
+        //TODO change suggested to contain envs instead of os? Default envs should still be favored, but
+        //TODO suggesting non default envs when they are better makes more sense
+
+        //if default envs were found, add object environments and return these
+        if(defaultList.size() > 0) {
             for(EnvironmentInfo info : environmentList)
             {
                 if(info.isObjectEnvironment()) {
-                    LOG.info("adding oe to default list.");
                     defaultList.add(0, info);
                 }
             }
             response.setEnvironmentList(defaultList);
         }
+        //otherwise return all other environments that were proposed by the ProposalTask
         else
             response.setEnvironmentList(environmentList);
 
-//=======
-//        HashMap<String, RelatedQIDS> qidsHashMap = new HashMap<>();
-//        environmentList.forEach(env -> {
-//            String os = null;
-//            try {
-//                os =  ((MachineConfiguration) envHelper.getEnvironmentById(env.getId())).getOperatingSystemId();
-//
-//                if(os != null) {
-//                    // sanitze: remove ':'
-//                    os = os.replace(':', '_');
-//                    qidsHashMap.put(env.getId(), QIDsFinder.findFollowingAndFollowedQIDS(os));
-//                }
-//            } catch (BWFLAException e) {
-//                e.printStackTrace();
-//            }
-//        });
-//
-//        response.setEnvironmentList(environmentList);
-//>>>>>>> master
-        try {
-            LOG.info("Finished proposing environments, returning: \n" + DataUtils.json().writer(true).writeValueAsString(response));
-        }
-        catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
         return response;
     }
 

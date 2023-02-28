@@ -24,12 +24,7 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.BiFunction;
-import java.util.function.Function;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -108,18 +103,12 @@ public class ImageIndex
 
 	public void printMaps(){
 
-		System.out.println("---------------------------------");
-		System.out.println("---------------------------------");
-		System.out.println("---------------------------------");
-		System.out.println("---------------------------------");
 		printEntry("operatingSystems", this.operatingSystems);
 		printEntry("entriesByExt", this.entriesByExt);
 		printEntry("entriesByPUID", this.entriesByPUID);
 		printEntry("operatingSystemsExtInv", this.operatingSystemsExtInv);
 		printEntry("operatingSystemsPUIDInv", this.operatingSystemsPUIDInv);
 		printEntry("operatingSystemExtMap", this.operatingSystemExtMap);
-
-
 	}
 
 	public OperatingSystemInformation getOperatingSystemInfo(String osId)
@@ -175,6 +164,32 @@ public class ImageIndex
 		}
 
 		entry.add(image);
+	}
+
+
+	public List<OperatingSystemInformation> getOSforPUID(Set<String> valuesToCheck, int maxCount)
+	{
+		return getOSforValues(valuesToCheck, maxCount, false);
+	}
+
+	public List<OperatingSystemInformation> getOSforExtensions(Set<String> valuesToCheck, int maxCount)
+	{
+		return getOSforValues(valuesToCheck, maxCount, true);
+
+	}
+
+	private List<OperatingSystemInformation> getOSforValues(Set<String> valuesToCheck, int maxCount, boolean isExt)
+	{
+		ArrayList<OperatingSystemInformation> supportedOSs = new ArrayList<>();
+
+		for (var potentialOS : operatingSystems.values()) {
+			var supportedValues = isExt ? potentialOS.getExtensions() : potentialOS.getPuids();
+			if(valuesToCheck.stream().filter(supportedValues::contains).count() >= maxCount){
+				supportedOSs.add(potentialOS);
+			}
+		}
+		return supportedOSs;
+
 	}
 
 	public Set<String> put(String format, Set<String> images)

@@ -208,7 +208,7 @@ public class ImageIndexHandle
 				}
 
 				log.info("Image index rebuilt. ");
-				index.printMaps();
+				//index.printMaps();
 				return index;
 			}
 			catch (Exception exception) {
