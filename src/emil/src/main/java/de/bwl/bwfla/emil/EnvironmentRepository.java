@@ -263,9 +263,7 @@ public class EnvironmentRepository extends EmilRest
 		}
 
 		try {
-			final String json = new String(Files.readAllBytes(osInfoPath));
-			final String value = "{\"operatingSystems\": " + json + "}";
-			return OperatingSystems.fromJsonValue(value, OperatingSystems.class);
+			return DataUtils.json().mapper().readValue(osInfoPath.toFile(), OperatingSystems.class);
 		}
 		catch (Exception error) {
 			LOG.log(Level.WARNING, "Deserializing OS-metadata failed!", error);
