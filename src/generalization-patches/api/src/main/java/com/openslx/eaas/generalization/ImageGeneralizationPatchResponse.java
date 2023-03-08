@@ -16,42 +16,39 @@
  * along with the Emulation-as-a-Software framework.
  * If not, see <http://www.gnu.org/licenses/>.
  */
+
 package com.openslx.eaas.generalization;
 
-import de.bwl.bwfla.common.utils.jaxb.JaxbType;
 
-import javax.xml.bind.annotation.XmlAccessType;
-import javax.xml.bind.annotation.XmlAccessorType;
-import javax.xml.bind.annotation.XmlElement;
-import javax.xml.bind.annotation.XmlRootElement;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonSetter;
 
 
-@XmlRootElement
-@XmlAccessorType(XmlAccessType.NONE)
-public class ImageGeneralizationPatchResponse extends JaxbType
+public class ImageGeneralizationPatchResponse
 {
-	@XmlElement
-	private String status;
 
-	@XmlElement
+	private String status;
 	private String imageId;
 
-
+	@JsonSetter("imageId")
 	public void setImageId(String imageId)
 	{
 		this.imageId = imageId;
 	}
 
+	@JsonGetter("imageId")
 	public String getImageId()
 	{
 		return imageId;
 	}
 
+	@JsonSetter("status")
 	public void setStatus(String status)
 	{
 		this.status = status;
 	}
 
+	@JsonGetter("status")
 	public String getStatus()
 	{
 		return status;

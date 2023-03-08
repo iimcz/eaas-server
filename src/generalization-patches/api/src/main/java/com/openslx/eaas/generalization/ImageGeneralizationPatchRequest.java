@@ -16,59 +16,53 @@
  * along with the Emulation-as-a-Software framework.
  * If not, see <http://www.gnu.org/licenses/>.
  */
+
 package com.openslx.eaas.generalization;
 
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import de.bwl.bwfla.api.imagearchive.ImageType;
-import de.bwl.bwfla.common.utils.jaxb.JaxbType;
-
-import javax.xml.bind.annotation.XmlAccessType;
-import javax.xml.bind.annotation.XmlAccessorType;
-import javax.xml.bind.annotation.XmlElement;
-import javax.xml.bind.annotation.XmlRootElement;
 
 
-//TODO restructe as json not xml ?
-
-@XmlRootElement
-@XmlAccessorType(XmlAccessType.NONE)
-public class ImageGeneralizationPatchRequest extends JaxbType
+public class ImageGeneralizationPatchRequest
 {
-	@XmlElement
 	private String archive;
-
-	@XmlElement
 	private String imageId;
-
 	//TODO remove this dependency and use String?
-	@XmlElement
 	private ImageType imageType;
 
-
+	@JsonSetter("imageId")
 	public void setImageId(String imageId)
 	{
 		this.imageId = imageId;
 	}
+
+	@JsonGetter("imageId")
 
 	public String getImageId()
 	{
 		return imageId;
 	}
 
+	@JsonSetter("archive")
 	public void setArchive(String archive)
 	{
 		this.archive = archive;
 	}
 
+	@JsonGetter("archive")
 	public String getArchive()
 	{
 		return archive;
 	}
 
+	@JsonSetter("imageType")
 	public void setImageType(ImageType imageType)
 	{
 		this.imageType = imageType;
 	}
 
+	@JsonGetter("imageType")
 	public ImageType getImageType()
 	{
 		return imageType;
