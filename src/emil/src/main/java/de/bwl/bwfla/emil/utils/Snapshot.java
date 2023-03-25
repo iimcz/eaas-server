@@ -306,6 +306,13 @@ public class Snapshot
                 throw new BWFLAException("Saving checkpoint failed!", error);
             }
 
+			// Remove old checkpoint binding, if present
+			final var oldCheckpointId = config.getCheckpointBindingId();
+			if (oldCheckpointId != null && !oldCheckpointId.isEmpty()) {
+				config.getAbstractDataResource()
+						.removeIf((entry) -> oldCheckpointId.equals(entry.getId()));
+			}
+
             // Update machine's configuration
             config.setCheckpointBindingId("binding://" + binding.getId());
             config.getAbstractDataResource().add(binding);
