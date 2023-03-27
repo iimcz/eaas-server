@@ -21,15 +21,13 @@ package com.openslx.eaas.generalization;
 
 import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonSetter;
-import de.bwl.bwfla.api.imagearchive.ImageType;
 
 
 public class ImageGeneralizationPatchRequest
 {
 	private String archive;
 	private String imageId;
-	//TODO remove this dependency and use String?
-	private ImageType imageType;
+	private String imageType;
 
 	@JsonSetter("imageId")
 	public void setImageId(String imageId)
@@ -57,13 +55,13 @@ public class ImageGeneralizationPatchRequest
 	}
 
 	@JsonSetter("imageType")
-	public void setImageType(ImageType imageType)
+	public void setImageType(String imageType)
 	{
 		this.imageType = imageType;
 	}
 
 	@JsonGetter("imageType")
-	public ImageType getImageType()
+	public String getImageType()
 	{
 		return imageType;
 	}

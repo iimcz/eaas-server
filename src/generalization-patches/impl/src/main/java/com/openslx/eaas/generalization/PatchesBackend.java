@@ -76,13 +76,13 @@ public class PatchesBackend
 					.metadata(MetaDataKindV2.IMAGES)
 					.fetch(request.getImageId(), ImageArchiveMappers.JSON_TREE_TO_IMAGE_METADATA);
 
-			final String newImageId = createPatchedImage(request.getImageId(), request.getImageType().value(), patchId);
+			final String newImageId = this.createPatchedImage(request.getImageId(), patchId);
 
 			final var newImage = new ImageMetaData()
 					.setId(newImageId)
 					.setFileSystemType(origImage.fileSystemType())
 					.setLabel(origImage.label() + " (generalized)")
-					.setCategory(request.getImageType().value());
+					.setCategory(request.getImageType());
 
 			final var options = new ReplaceOptionsV2()
 					.setLocation(request.getArchive());
@@ -106,22 +106,20 @@ public class PatchesBackend
 
 	}
 
-	public String createPatchedImage(String imageId, String type, String patchId) throws BWFLAException
+	public String createPatchedImage(String imageId, String patchId) throws BWFLAException
 	{
 		if (patchId == null)
 			throw new BWFLAException("Invalid image-generalization patch ID!");
 
-		return createPatchedImage(imageId, type, patches.lookup(patchId));
+		return this.createPatchedImage(imageId, patches.lookup(patchId));
 	}
 
 
-	protected String createPatchedImage(String parentId, String type, ImageGeneralizationPatch patch)
+	protected String createPatchedImage(String parentId, ImageGeneralizationPatch patch)
 			throws BWFLAException
 	{
 		if (parentId == null)
 			throw new BWFLAException("Invalid image's ID!");
-
-		//TODO type is ignore here, as the image is simply imported, is the field necessary?
 
 		var resolved = imagearchive.api()
 				.v2()
