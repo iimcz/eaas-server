@@ -57,6 +57,11 @@ public class ImageGeneralizationPatches
 		return patches.values();
 	}
 
+	public Logger logger()
+	{
+		return log;
+	}
+
 
 	// ===== Internal Helpers =========================
 

@@ -45,12 +45,6 @@
             <groupId>com.openslx.eaas</groupId>
             <artifactId>image-archive-client</artifactId>
             <version>${project.version}</version>
-
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
         </dependency>
     </dependencies>
-
 </project>
