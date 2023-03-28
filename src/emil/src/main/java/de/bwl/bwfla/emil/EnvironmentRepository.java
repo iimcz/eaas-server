@@ -23,6 +23,8 @@ import com.openslx.eaas.common.concurrent.ParallelProcessors;
 import com.openslx.eaas.common.databind.DataUtils;
 import com.openslx.eaas.common.databind.Streamable;
 import com.openslx.eaas.common.util.MultiCounter;
+import com.openslx.eaas.generalization.ImageGeneralizationPatchDescription;
+import com.openslx.eaas.generalization.ImageGeneralizationPatchResponse;
 import com.openslx.eaas.imagearchive.ImageArchiveClient;
 import com.openslx.eaas.imagearchive.ImageArchiveMappers;
 import com.openslx.eaas.imagearchive.api.v2.common.InsertOptionsV2;
@@ -38,13 +40,12 @@ import com.openslx.eaas.migration.IMigratable;
 import com.openslx.eaas.migration.MigrationRegistry;
 import com.openslx.eaas.migration.MigrationUtils;
 import com.openslx.eaas.migration.config.MigrationConfig;
-import com.openslx.eaas.generalization.GeneralizationPatchesClient;
+import com.openslx.eaas.generalization.ImageGeneralizationClient;
 import com.openslx.eaas.generalization.ImageGeneralizationPatchRequest;
 import com.webcohesion.enunciate.metadata.rs.TypeHint;
 import de.bwl.bwfla.api.imagearchive.*;
 import de.bwl.bwfla.common.datatypes.identification.OperatingSystems;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.ConfigHelpers;
 import de.bwl.bwfla.common.utils.ImageInformation;
 import de.bwl.bwfla.common.utils.NetworkUtils;
 import de.bwl.bwfla.emil.datatypes.DefaultEnvironmentResponse;
@@ -79,6 +80,7 @@ import org.apache.tamaya.ConfigurationProvider;
 import org.apache.tamaya.inject.api.Config;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import javax.annotation.Resource;
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.event.Observes;
@@ -106,6 +108,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.stream.Stream;
 
@@ -148,7 +151,7 @@ public class EnvironmentRepository extends EmilRest
 
 	private SoftwareArchiveHelper swHelper;
 
-	private GeneralizationPatchesClient patchesClient;
+	private ImageGeneralizationClient imageGeneralization;
 
 	@Inject
 	private EmilObjectData objects;
@@ -161,10 +164,24 @@ public class EnvironmentRepository extends EmilRest
 			imagearchive = emilEnvRepo.getImageArchive();
 			imageProposer = new ImageProposer(imageProposerService + "/imageproposer");
 			swHelper = new SoftwareArchiveHelper(softwareArchive);
-			patchesClient = new GeneralizationPatchesClient(); //TODO pass URL here?
+
+			final Supplier<String> usertoken = () -> this.getUserContext().getToken();
+			imageGeneralization = ImageGeneralizationClient.create(usertoken);
 		}
 		catch (Exception error) {
 			throw new RuntimeException(error);
+		}
+	}
+
+	@PreDestroy
+	private void destroy()
+	{
+		try {
+			if (imageGeneralization != null)
+				imageGeneralization.close();
+		}
+		catch (Exception error) {
+			LOG.log(Level.WARNING, "Closing generalization-patches client failed!", error);
 		}
 	}
 
@@ -1214,11 +1231,13 @@ public class EnvironmentRepository extends EmilRest
 		@GET
 		@Secured(roles={Role.RESTRICTED})
 		@Produces(MediaType.APPLICATION_JSON)
-		public Response list() throws BWFLAException
+		public Streamable<ImageGeneralizationPatchDescription> list() throws BWFLAException
 		{
 			LOG.info("Listing image-generalization patches...");
-
-			return patchesClient.getPatches();
+			return imageGeneralization.api()
+					.v1()
+					.patches()
+					.list();
 		}
 
 		/** Try to apply a patch to the specified image. */
@@ -1227,11 +1246,14 @@ public class EnvironmentRepository extends EmilRest
 		@Secured(roles={Role.RESTRICTED})
 		@Consumes(MediaType.APPLICATION_JSON)
 		@Produces(MediaType.APPLICATION_JSON)
-		public Response apply(@PathParam("patchId") String patchId, ImageGeneralizationPatchRequest request)
+		public ImageGeneralizationPatchResponse apply(@PathParam("patchId") String patchId, ImageGeneralizationPatchRequest request)
+				throws BWFLAException
 		{
 			LOG.info("Applying image-generalization patch...");
-
-			return patchesClient.patchImage(patchId, request);
+			return imageGeneralization.api()
+					.v1()
+					.patches()
+					.apply(patchId, request);
 		}
 	}
 
