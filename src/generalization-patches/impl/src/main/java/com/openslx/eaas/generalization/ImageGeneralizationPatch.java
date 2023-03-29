@@ -17,7 +17,7 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.bwl.bwfla.imagearchive.generalization;
+package com.openslx.eaas.generalization;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -59,12 +59,12 @@ public class ImageGeneralizationPatch {
 		blobStoreRestAddress = ConfigurationProvider.getConfiguration().get("rest.blobstore");
 	}
 
-	private static Path prepareCow(Path dir, String backingFile) throws BWFLAException {
-		String filename = UUID.randomUUID().toString();
+	private static Path prepareCow(Path dir, String backingFile, String newFileName) throws BWFLAException {
+		System.out.println("Preparing cow...");
 		QcowOptions options = new QcowOptions();
 		options.setBackingFile(backingFile);
 
-		Path destImgFile = dir.resolve(filename);
+		Path destImgFile = dir.resolve(newFileName);
 		EmulatorUtils.createCowFile(destImgFile, options);
 		return destImgFile;
 	}
@@ -82,12 +82,11 @@ public class ImageGeneralizationPatch {
 		return new URL(handle.toRestUrl(blobStoreRestAddress));
 	}
 
-	public URL applyto(String backingFile, Logger log) throws BWFLAException
+	public URL applyto(String backingFile, String newFileName, Logger log) throws BWFLAException
 	{
 		log.info("Patching image: " + backingFile);
 		final Path workdir = ImageMounter.createWorkingDirectory();
-		Path image = prepareCow(workdir, backingFile);
-		boolean patchSuccessful = false;
+		Path image = prepareCow(workdir, backingFile, newFileName);
 
 		try (final ImageMounter mounter = new ImageMounter(log)) {
 			mounter.addWorkingDirectory(workdir);
@@ -125,14 +124,16 @@ public class ImageGeneralizationPatch {
 						throw new BWFLAException("Applying patch failed!");
 
 					log.info("Patching was successful!");
-					patchSuccessful = true;
-					break;
+
+					log.info("Unmounting images...");
+					mounter.unmount();
+
+					log.info("Uploading patched image to blob-store...");
+					return this.publishImage(image);
 				}
+
 				log.info("Partition " + partition.getIndex() + " does not match selectors, skip");
 				fsmnt.unmount(false);
-
-				if(patchSuccessful)
-					return publishImage(image);
 			}
 			throw new BWFLAException("Patching image failed! No matching partition was found!");
 		}

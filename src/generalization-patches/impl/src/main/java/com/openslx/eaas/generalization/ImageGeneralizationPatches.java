@@ -17,7 +17,7 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.bwl.bwfla.imagearchive.generalization;
+package com.openslx.eaas.generalization;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -37,8 +37,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 
-@Startup
+
 @Singleton
+@Startup
 public class ImageGeneralizationPatches
 {
 	private final Logger log = Logger.getLogger("GENERALIZATION-PATCHES");
@@ -56,6 +57,11 @@ public class ImageGeneralizationPatches
 		return patches.values();
 	}
 
+	public Logger logger()
+	{
+		return log;
+	}
+
 
 	// ===== Internal Helpers =========================
 
@@ -70,7 +76,7 @@ public class ImageGeneralizationPatches
 	private static Path getBaseDir()
 	{
 		final String dir = ConfigurationProvider.getConfiguration()
-				.get("imagearchive.generalization_patches_dir");
+				.get("generalization.base_dir");
 
 		return Paths.get(dir);
 	}

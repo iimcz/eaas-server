@@ -289,7 +289,8 @@
 		<module>preservica-client</module>
 		<module>metadata-oaipmh</module>
 		<module>metadata-repository</module>
-  </modules>
+		<module>generalization-patches</module>
+	</modules>
 
 	<dependencies>
 		<dependency>
@@ -565,6 +566,26 @@
 				<version>${project.version}</version>
 				<type>war</type>
 			</dependency>
+
+			<dependency>
+				<groupId>com.openslx.eaas</groupId>
+				<artifactId>generalization-patches-api</artifactId>
+				<version>${project.version}</version>
+				<type>jar</type>
+			</dependency>
+			<dependency>
+				<groupId>com.openslx.eaas</groupId>
+				<artifactId>generalization-patches-client</artifactId>
+				<version>${project.version}</version>
+				<type>jar</type>
+			</dependency>
+			<dependency>
+				<groupId>com.openslx.eaas</groupId>
+				<artifactId>generalization-patches-impl</artifactId>
+				<version>${project.version}</version>
+				<type>war</type>
+			</dependency>
+
 			<dependency>
 				<groupId>de.bwl.bwfla</groupId>
 				<artifactId>imageclassifier-client</artifactId>

@@ -36,7 +36,6 @@ import de.bwl.bwfla.imagearchive.conf.ImageArchiveBackendConfig;
 import de.bwl.bwfla.imagearchive.datatypes.EmulatorMetadata;
 import de.bwl.bwfla.imagearchive.datatypes.ImageArchiveMetadata;
 import de.bwl.bwfla.imagearchive.datatypes.ImageImportResult;
-import de.bwl.bwfla.imagearchive.generalization.ImageGeneralizationPatch;
 import de.bwl.bwfla.imagearchive.tasks.ImportImageTask;
 import org.apache.commons.io.FileUtils;
 
@@ -1062,35 +1061,6 @@ public class ImageHandler
 		});
 
 		return taskids;
-	}
-
-	protected String createPatchedImage(String parentId, String type, ImageGeneralizationPatch patch)
-			throws  BWFLAException
-	{
-		if (parentId == null)
-			throw new BWFLAException("Invalid image's ID!");
-
-		String newBackingFile = getArchivePrefix() + parentId;
-		try {
-			log.info("Preparing image '" + parentId + "' for patching with patch '" + patch.getName() + "'...");
-			URL urlToQcow = patch.applyto(newBackingFile, log);
-
-			ImageArchiveMetadata md = new ImageArchiveMetadata(ImageType.valueOf(type));
-			TaskState state = importImageUrlAsync(urlToQcow, md, false);
-			state = ImageArchiveRegistry.getState(state.getTaskId());
-			while(!state.isDone()) {
-				Thread.sleep(500);
-				state = ImageArchiveRegistry.getState(state.getTaskId());
-			}
-			if(state.isFailed())
-				throw new BWFLAException("failed to patch");
-
-			log.info("finished patching. new image id " + state.getResult());
-			return state.getResult();
-		}
-		catch (BWFLAException | InterruptedException | IOException error) {
-			throw new BWFLAException(error);
-		}
 	}
 
 	public void createOrUpdateHandle(String imageId) throws BWFLAException

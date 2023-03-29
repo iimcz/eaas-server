@@ -25,14 +25,6 @@ public class DatabaseEnvironmentsAdapter {
         environmentsAdapter = new EnvironmentsAdapter(imageArchive);
     }
 
-    public String createPatchedImage(String id, ImageType imageType, String patchId) throws BWFLAException {
-        return environmentsAdapter.createPatchedImage(id, imageType, patchId);
-    }
-
-    public String createPatchedImage(String archive, String id, ImageType imageType, String patchId) throws BWFLAException {
-        return environmentsAdapter.createPatchedImage(archive, id, imageType, patchId);
-    }
-
     @Deprecated
     public EnvironmentsAdapter.ImportImageHandle importImage(String archive, URL url, ImageArchiveMetadata iaMd, boolean b) throws BWFLAException {
         return environmentsAdapter.importImage(archive, url, iaMd, b);
@@ -52,10 +44,6 @@ public class DatabaseEnvironmentsAdapter {
     @Deprecated
     public ImageNameIndex getNameIndexes() throws BWFLAException {
         return environmentsAdapter.getNameIndexes(EMULATOR_DEFAULT_ARCHIVE);
-    }
-
-    public List<ImageGeneralizationPatchDescription> getImageGeneralizationPatches() throws BWFLAException {
-        return environmentsAdapter.getImageGeneralizationPatches();
     }
 
     @Deprecated

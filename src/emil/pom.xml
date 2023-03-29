@@ -116,5 +116,13 @@
 			<groupId>io.pebbletemplates</groupId>
 			<artifactId>pebble</artifactId>
 		</dependency>
-	</dependencies>
+        <dependency>
+            <groupId>com.openslx.eaas</groupId>
+            <artifactId>generalization-patches-client</artifactId>
+        </dependency>
+		<dependency>
+			<groupId>com.openslx.eaas</groupId>
+			<artifactId>generalization-patches-api</artifactId>
+		</dependency>
+    </dependencies>
 </project>

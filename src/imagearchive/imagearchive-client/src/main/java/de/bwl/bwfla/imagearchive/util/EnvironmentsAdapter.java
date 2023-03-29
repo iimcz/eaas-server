@@ -16,11 +16,6 @@ public class EnvironmentsAdapter extends ImageArchiveWSClient {
 
 	@Deprecated
 	private static final String EMULATOR_DEFAULT_ARCHIVE = "emulators";
-
-	public List<ImageGeneralizationPatchDescription> getImageGeneralizationPatches() throws BWFLAException {
-		connectArchive();
-		return archive.getImageGeneralizationPatches();
-	}
 	
 	@Deprecated
 	public ImportImageHandle importImage(String backend, URL ref, ImageArchiveMetadata iaMd, boolean deleteIfExists) throws BWFLAException {
@@ -30,15 +25,6 @@ public class EnvironmentsAdapter extends ImageArchiveWSClient {
 
 		String sessionId = archive.importImageFromUrl(backend, ref.toString(), iaMd);
 		return new ImportImageHandle(archive, backend, iaMd.getType(), sessionId);
-	}
-
-	public String createPatchedImage(String imageId, ImageType type, String patchId) throws BWFLAException {
-		return this.createPatchedImage(this.getDefaultBackendName(), imageId, type, patchId);
-	}
-
-	public String createPatchedImage(String backend, String imageId, ImageType type, String patchId) throws BWFLAException {
-		connectArchive();
-		return archive.createPatchedImage(backend, imageId, type, patchId);
 	}
 
 	public List<DefaultEntry> getDefaultEnvironments(String backend) throws BWFLAException {

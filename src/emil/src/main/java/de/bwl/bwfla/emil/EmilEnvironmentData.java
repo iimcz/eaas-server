@@ -11,6 +11,8 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.xml.bind.JAXBException;
 
+import com.openslx.eaas.common.databind.Streamable;
+import com.openslx.eaas.generalization.ImageGeneralizationPatchDescription;
 import de.bwl.bwfla.api.imagearchive.*;
 import de.bwl.bwfla.common.datatypes.identification.OperatingSystems;
 import de.bwl.bwfla.emil.datatypes.*;
@@ -131,7 +133,7 @@ public class EmilEnvironmentData
 	 *         "Architecture", "value": "x86_64"}, {"name": "Fun Fact", "value":
 	 *         "In 1936, the Russians made a computer that ran on water"}]}]}
 	 */
-	public List<ImageGeneralizationPatchDescription> getPatches() throws BWFLAException, JAXBException {
+	public Streamable<ImageGeneralizationPatchDescription> getPatches() throws BWFLAException, JAXBException {
 		return envrepo.patches()
 				.list();
 	}

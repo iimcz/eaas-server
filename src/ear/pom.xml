@@ -211,6 +211,28 @@
 			<activation>
 				<activeByDefault>true</activeByDefault>
 			</activation>
+			<id>generalization-patches</id>
+			<dependencies>
+				<dependency>
+					<groupId>com.openslx.eaas</groupId>
+					<artifactId>generalization-patches-api</artifactId>
+				</dependency>
+				<dependency>
+					<groupId>com.openslx.eaas</groupId>
+					<artifactId>generalization-patches-client</artifactId>
+				</dependency>
+				<dependency>
+					<groupId>com.openslx.eaas</groupId>
+					<artifactId>generalization-patches-impl</artifactId>
+					<type>war</type>
+				</dependency>
+			</dependencies>
+		</profile>
+
+		<profile>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
 			<id>objectarchive</id>
 			<dependencies>
 				<dependency>
