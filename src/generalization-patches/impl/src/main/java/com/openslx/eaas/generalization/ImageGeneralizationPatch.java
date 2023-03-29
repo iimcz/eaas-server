@@ -87,7 +87,6 @@ public class ImageGeneralizationPatch {
 		log.info("Patching image: " + backingFile);
 		final Path workdir = ImageMounter.createWorkingDirectory();
 		Path image = prepareCow(workdir, backingFile, newFileName);
-		boolean patchSuccessful = false;
 
 		try (final ImageMounter mounter = new ImageMounter(log)) {
 			mounter.addWorkingDirectory(workdir);
@@ -125,14 +124,16 @@ public class ImageGeneralizationPatch {
 						throw new BWFLAException("Applying patch failed!");
 
 					log.info("Patching was successful!");
-					patchSuccessful = true;
-					break;
+
+					log.info("Unmounting images...");
+					mounter.unmount();
+
+					log.info("Uploading patched image to blob-store...");
+					return this.publishImage(image);
 				}
+
 				log.info("Partition " + partition.getIndex() + " does not match selectors, skip");
 				fsmnt.unmount(false);
-
-				if(patchSuccessful)
-					return publishImage(image);
 			}
 			throw new BWFLAException("Patching image failed! No matching partition was found!");
 		}
