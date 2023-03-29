@@ -34,7 +34,6 @@ import de.bwl.bwfla.imagearchive.datatypes.EmulatorMetadata;
 import de.bwl.bwfla.imagearchive.datatypes.ImageArchiveMetadata;
 import de.bwl.bwfla.imagearchive.datatypes.ImageArchiveMetadata.ImageType;
 import de.bwl.bwfla.imagearchive.datatypes.ImageImportResult;
-import de.bwl.bwfla.imagearchive.generalization.ImageGeneralizationPatch;
 import de.bwl.bwfla.imagearchive.tasks.CreateImageTask;
 
 import javax.activation.DataHandler;
@@ -216,14 +215,6 @@ public class ImageArchiveBackend implements Comparable<ImageArchiveBackend>
 	public ImageImportResult getImageImportResult(String sessionId) throws BWFLAException
 	{
 		return imageHandler.getImageImportResult(sessionId);
-	}
-
-	public String createPatchedImage(String imageId, ImageType type, ImageGeneralizationPatch patch) throws BWFLAException
-	{
-		if (patch == null)
-			throw new BWFLAException("Requested patch was not found!");
-
-		return imageHandler.createPatchedImage(imageId, type.name(), patch);
 	}
 
 	public EmulatorMetadata extractMetadata(String imageId) throws BWFLAException {
