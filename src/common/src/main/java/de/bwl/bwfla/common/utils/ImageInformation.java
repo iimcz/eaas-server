@@ -72,6 +72,7 @@ public class ImageInformation {
         RAW("raw"),
         VDI("vdi"),
         VHD("vpc"),
+        VPC("vpc"),
         VMDK("vmdk"),
         EWF("ewf"),
         VHDX("vhdx");
