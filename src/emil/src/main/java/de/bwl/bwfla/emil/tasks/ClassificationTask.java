@@ -5,7 +5,7 @@ import de.bwl.bwfla.common.datatypes.identification.DiskType;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.services.security.UserContext;
 import de.bwl.bwfla.common.taskmanager.BlockingTask;
-import de.bwl.bwfla.emil.DatabaseEnvironmentsAdapter;
+import de.bwl.bwfla.emil.DefaultEnvironmentsBackend;
 import de.bwl.bwfla.emil.EmilEnvironmentRepository;
 import de.bwl.bwfla.emil.ObjectClassification;
 import de.bwl.bwfla.emil.datatypes.EmilEnvironment;
@@ -47,9 +47,7 @@ public class ClassificationTask extends BlockingTask<Object>
 
     private final EmilEnvironmentRepository emilEnvRepo;
     private final ClassifyObjectRequest request;
-
-    @Deprecated
-    private final DatabaseEnvironmentsAdapter envHelper;
+    private final DefaultEnvironmentsBackend envHelper;
     private final ImageArchiveClient imagearchive;
     private final ImageClassifier imageClassifier;
     private final ImageProposer imageProposer;
@@ -58,9 +56,7 @@ public class ClassificationTask extends BlockingTask<Object>
     public static class ClassifyObjectRequest
     {
         public ObjectClassification classification;
-
-        @Deprecated
-        public DatabaseEnvironmentsAdapter environments;
+        public DefaultEnvironmentsBackend environments;
         public ImageArchiveClient imagearchive;
         public EmilEnvironmentRepository metadata;
         public ClassificationResult input;
@@ -306,7 +302,7 @@ public class ClassificationTask extends BlockingTask<Object>
                 }
             }
         }
-        catch (BWFLAException e)
+        catch (Exception e)
         {
             LOG.log(Level.SEVERE, e.getMessage(), e);
         }

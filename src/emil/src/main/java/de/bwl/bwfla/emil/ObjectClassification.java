@@ -1,6 +1,5 @@
 package de.bwl.bwfla.emil;
 
-import com.openslx.eaas.imagearchive.ImageArchiveClient;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.database.MongodbEaasConnector;
 import de.bwl.bwfla.emil.datatypes.EnvironmentInfo;
@@ -66,7 +65,7 @@ public class ObjectClassification {
     private EmilEnvironmentRepository metadata;
 
     @Inject
-    private DatabaseEnvironmentsAdapter environments;
+    private DefaultEnvironmentsBackend defaultEnvs;
 
     @Inject
     private TaskManager taskManager;
@@ -155,7 +154,7 @@ public class ObjectClassification {
         request.url = url;
         request.filename = filename;
         request.classification = this;
-        request.environments = environments;
+        request.environments = defaultEnvs;
         request.metadata = metadata;
         request.input = null;
         request.userCtx = this.getUserContext().clone();
@@ -182,7 +181,7 @@ public class ObjectClassification {
         ClassificationTask.ClassifyObjectRequest request = new ClassificationTask.ClassifyObjectRequest();
         request.fileCollection = fc;
         request.classification = this;
-        request.environments = environments;
+        request.environments = defaultEnvs;
         request.metadata = metadata;
         request.input = null;
         request.noUpdate = noUpdate;
