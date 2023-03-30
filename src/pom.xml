@@ -270,7 +270,6 @@
 		<module>blobstore</module>
 		<module>blobstore-client-v2</module>
 		<module>dig-pub-sharing</module>
-		<module>environment-proposer</module>
 		<module>image-archive</module>
 		<module>imagearchive</module>
 		<module>imagearchive/imagearchive-client</module>
@@ -777,12 +776,6 @@
 				<artifactId>metadata-repository-server</artifactId>
 				<version>${project.version}</version>
 				<type>jar</type>
-			</dependency>
-			<dependency>
-				<groupId>de.bwl.bwfla</groupId>
-				<artifactId>environment-proposer</artifactId>
-				<version>${project.version}</version>
-				<type>war</type>
 			</dependency>
 			<dependency>
 				<groupId>de.bwl.bwfla</groupId>
