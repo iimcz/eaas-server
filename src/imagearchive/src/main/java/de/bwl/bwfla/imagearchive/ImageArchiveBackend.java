@@ -29,7 +29,6 @@ import de.bwl.bwfla.imagearchive.ImageIndex.Alias;
 import de.bwl.bwfla.imagearchive.ImageIndex.ImageMetadata;
 import de.bwl.bwfla.imagearchive.ImageIndex.ImageNameIndex;
 import de.bwl.bwfla.imagearchive.conf.ImageArchiveBackendConfig;
-import de.bwl.bwfla.imagearchive.datatypes.DefaultEnvironments;
 import de.bwl.bwfla.imagearchive.datatypes.EmulatorMetadata;
 import de.bwl.bwfla.imagearchive.datatypes.ImageArchiveMetadata;
 import de.bwl.bwfla.imagearchive.datatypes.ImageArchiveMetadata.ImageType;
@@ -38,11 +37,7 @@ import de.bwl.bwfla.imagearchive.tasks.CreateImageTask;
 
 import javax.activation.DataHandler;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.*;
 import java.util.*;
 import java.util.logging.Logger;
@@ -56,7 +51,6 @@ public class ImageArchiveBackend implements Comparable<ImageArchiveBackend>
 	private final ImageMetadataCache cache;
 	private final IWDArchive iwdArchive;
 	private final ImageHandler imageHandler;
-	private final Properties defaultEnvironments;
 
 
 	public ImageArchiveBackend(ImageArchiveBackendConfig config) throws BWFLAException
@@ -69,7 +63,6 @@ public class ImageArchiveBackend implements Comparable<ImageArchiveBackend>
 		this.cache = new ImageMetadataCache();
 		this.iwdArchive = new IWDArchive(config);
 		this.imageHandler = new ImageHandler(config, cache, log);
-		this.defaultEnvironments = ImageArchiveBackend.loadProperties(config.getDefaultEnvironmentsPath());
 	}
 
 	public ImageArchiveBackendConfig getConfig()
@@ -299,59 +292,6 @@ public class ImageArchiveBackend implements Comparable<ImageArchiveBackend>
 		return iwdArchive.addRecordingFile(envId, traceId, data);
 	}
 
-	@Deprecated
-	public String getDefaultEnvironment(String osId)
-	{
-		if(osId == null)
-			osId = "default";
-		synchronized (defaultEnvironments) {
-			return defaultEnvironments.getProperty(osId);
-		}
-	}
-
-	@Deprecated
-	public DefaultEnvironments getDefaultEnvironments()
-	{
-		synchronized (defaultEnvironments) {
-			Properties defaults = defaultEnvironments;
-			List<DefaultEnvironments.DefaultEntry> map = new ArrayList<>();
-
-			Enumeration<?> enumeration = defaults.propertyNames();
-			while (enumeration.hasMoreElements()) {
-				String k = (String) enumeration.nextElement();
-				DefaultEnvironments.DefaultEntry e = new DefaultEnvironments.DefaultEntry();
-				e.setKey(k);
-				e.setValue(defaults.getProperty(k));
-				map.add(e);
-			}
-			DefaultEnvironments response = new DefaultEnvironments();
-			response.setMap(map);
-			return response;
-		}
-	}
-
-	@Deprecated
-	public synchronized void setDefaultEnvironment(String osId, String envId) throws BWFLAException
-	{
-		synchronized (defaultEnvironments) {
-			if(osId == null) // default for all OS
-				osId = "default";
-			defaultEnvironments.setProperty(osId, envId);
-			if (config.getDefaultEnvironmentsPath() == null)
-				return;
-
-			try {
-				try (OutputStream outstream = new FileOutputStream(config.getDefaultEnvironmentsPath())) {
-					defaultEnvironments.store(outstream, null);
-					log.info("List of default environments updated!");
-				}
-			}
-			catch (Exception error) {
-				throw new BWFLAException("Updating default environments failed!", error);
-			}
-		}
-	}
-
 	public String getImageBinding(String name, String version) throws BWFLAException
 	{
 		final ImageArchiveBinding binding = imageHandler.getImageBinding(name, version);
@@ -377,23 +317,6 @@ public class ImageArchiveBackend implements Comparable<ImageArchiveBackend>
 	public File getMetaDataTargetPath(String type)
 	{
 		return imageHandler.getMetaDataTargetPath(type);
-	}
-
-	private static Properties loadProperties(File source) throws BWFLAException
-	{
-		final Properties properties = new Properties();
-		if (source.exists()) {
-			try {
-				try (InputStream input = new FileInputStream(source)) {
-					properties.load(input);
-				}
-			}
-			catch (Exception error) {
-				throw new BWFLAException("Loading properties failed!", error);
-			}
-		}
-
-		return properties;
 	}
 
 	private static int compare(int a, int b) {

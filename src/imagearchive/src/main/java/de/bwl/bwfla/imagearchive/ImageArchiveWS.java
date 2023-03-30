@@ -35,7 +35,6 @@ import de.bwl.bwfla.imagearchive.datatypes.EmulatorMetadata;
 import de.bwl.bwfla.imagearchive.ImageIndex.Alias;
 import de.bwl.bwfla.imagearchive.ImageIndex.ImageMetadata;
 import de.bwl.bwfla.imagearchive.ImageIndex.ImageNameIndex;
-import de.bwl.bwfla.imagearchive.datatypes.DefaultEnvironments;
 import de.bwl.bwfla.imagearchive.datatypes.ImageImportResult;
 import org.jboss.ejb3.annotation.TransactionTimeout;
 
@@ -175,23 +174,6 @@ public class ImageArchiveWS
 	{
 		return this.lookup(backend)
 				.addRecordingFile(envId, traceId, data);
-	}
-
-	public DefaultEnvironments getDefaultEnvironments(String backend) throws BWFLAException {
-		return this.lookup(backend)
-				.getDefaultEnvironments();
-	}
-
-	public String getDefaultEnvironment(String backend, String osId) throws BWFLAException
-	{
-		return this.lookup(backend)
-				.getDefaultEnvironment(osId);
-	}
-
-	public void setDefaultEnvironment(String backend, String osId, String envId) throws BWFLAException
-	{
-		this.lookup(backend)
-				.setDefaultEnvironment(osId, envId);
 	}
 
 	public String getImageBinding(String backend, String name, String version) throws BWFLAException

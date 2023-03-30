@@ -7,7 +7,6 @@ import org.apache.tamaya.ConfigurationProvider;
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import java.net.URL;
-import java.util.List;
 import java.util.logging.Logger;
 
 
@@ -28,14 +27,6 @@ public class DatabaseEnvironmentsAdapter {
     @Deprecated
     public EnvironmentsAdapter.ImportImageHandle importImage(String archive, URL url, ImageArchiveMetadata iaMd, boolean b) throws BWFLAException {
         return environmentsAdapter.importImage(archive, url, iaMd, b);
-    }
-
-    public String getDefaultEnvironment(String osId) throws BWFLAException {
-        return environmentsAdapter.getDefaultEnvironment(osId);
-    }
-
-    public void setDefaultEnvironment(String osId, String envId) throws BWFLAException {
-        environmentsAdapter.setDefaultEnvironment(osId, envId);
     }
 
     @Deprecated
@@ -65,10 +56,6 @@ public class DatabaseEnvironmentsAdapter {
     @Deprecated
     public EmulatorMetadata extractMetadata(String imageId) throws BWFLAException {
         return environmentsAdapter.extractMetadata(imageId);
-    }
-
-    public List<DefaultEntry> getDefaultEnvironments() throws BWFLAException {
-        return environmentsAdapter.getDefaultEnvironments("default");
     }
 
     @Deprecated
