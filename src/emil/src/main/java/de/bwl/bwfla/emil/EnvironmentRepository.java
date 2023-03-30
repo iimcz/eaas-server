@@ -996,17 +996,8 @@ public class EnvironmentRepository extends EmilRest
 		@Produces(MediaType.APPLICATION_JSON)
 		public Map<String, String> list()
 		{
-
-
 			LOG.info("Listing default environments...");
-
-			Map<String, String> map = new HashMap<>();
-			List<de.bwl.bwfla.emil.datatypes.DefaultEnvironments.DefaultEntry> defaultEnvironments = defaultEnvs.getDefaultEnvironments().getMap();
-
-			for (var e : defaultEnvironments)
-				map.put(e.getKey(), e.getValue());
-
-			return map;
+			return defaultEnvs.getDefaultEnvironments();
 		}
 
 		/** Get configured default environment for a specific operating system ID */
