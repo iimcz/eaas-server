@@ -281,7 +281,7 @@ public class CurlTool implements AutoCloseable
 
 	private enum UploadMethod
 	{
-		POST("--data-binary"),
+		POST("--upload-file"),
 		PUT("--upload-file");
 
 		private final String argname;
