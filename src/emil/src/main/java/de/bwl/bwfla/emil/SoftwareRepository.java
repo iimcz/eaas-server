@@ -120,7 +120,7 @@ public class SoftwareRepository extends EmilRest
 					emilSoftwareObject.setLicenseInformation(sw.getLicence());
 					emilSoftwareObject.setIsOperatingSystem(sw.getIsOperatingSystem());
 					emilSoftwareObject.setNativeFMTs(sw.getSupportedFileFormats());
-					packages().create(emilSoftwareObject);
+					packages().create(emilSoftwareObject).close();
 				});
 	}
 
