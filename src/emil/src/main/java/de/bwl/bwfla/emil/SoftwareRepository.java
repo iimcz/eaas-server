@@ -439,7 +439,7 @@ public class SoftwareRepository extends EmilRest
 
 							var archiveId = (desc.getArchiveId() != null) ? desc.getArchiveId() : "default";
 
-							if(!(archiveId.equals("default") || archiveId.equals("zero conf"))){
+							if (archiveId.startsWith("user")) {
 								//this is reached if the object archive for the software is a (private) user-archive
 
 								if(loggedInUserArchiveName == null){
@@ -449,7 +449,6 @@ public class SoftwareRepository extends EmilRest
 
 								else if(!archiveId.equals(loggedInUserArchiveName)){
 									//only show private software where the corresponding archive belongs to the user
-									LOG.info("Not showing " + desc.getSoftwareId() + "to user: " + loggedInUserArchiveName);
 									return;
 								}
 							}
