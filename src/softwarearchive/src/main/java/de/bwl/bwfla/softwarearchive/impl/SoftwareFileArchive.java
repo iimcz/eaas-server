@@ -69,7 +69,7 @@ public class SoftwareFileArchive implements Serializable, ISoftwareArchive
 	@Override
 	public boolean changeSoftwareLabel(String objectId, String newLabel)
 	{
-		log.info("Changing software label in SW Archive...");
+		log.info("Changing label for software '" + objectId + "'...");
 		final Path path = archivePath.resolve(objectId);
 
 		try {
@@ -80,7 +80,7 @@ public class SoftwareFileArchive implements Serializable, ISoftwareArchive
 
 		}
 		catch (IOException | JAXBException e) {
-			log.warning("Updating Software Label failed!" + e);
+			log.log(Level.WARNING, "Updating label for software '" + objectId + "' failed!", e);
 			return false;
 		}
 
@@ -220,7 +220,7 @@ public class SoftwareFileArchive implements Serializable, ISoftwareArchive
 			return SoftwarePackage.fromValue(new String(encoded, StandardCharsets.UTF_8), SoftwarePackage.class);
 		}
 		catch (Exception exception) {
-			log.warning("Reading software package '" + path.toString() + "' failed: " +  exception);
+			log.log(Level.WARNING, "Reading software package '" + path.toString() + "' failed!", exception);
 			return null;
 		}
 	}
