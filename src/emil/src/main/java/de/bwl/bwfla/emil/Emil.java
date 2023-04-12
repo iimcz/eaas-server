@@ -49,7 +49,7 @@ public class Emil extends EmilRest
 	}
 
 	@GET
-	@Secured(roles = {Role.RESTRICTED})
+	@Secured(roles = {Role.ADMIN})
 	@Path("/resetUsageLog")
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response resetUsageLog()
@@ -58,7 +58,7 @@ public class Emil extends EmilRest
 	}
 
 	@GET
-	@Secured(roles = {Role.RESTRICTED})
+	@Secured(roles = {Role.ADMIN})
 	@Path("/usageLog")
 	@Produces(MediaType.TEXT_PLAIN)
 	public Response usageLog()

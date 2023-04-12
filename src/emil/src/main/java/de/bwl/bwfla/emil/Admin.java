@@ -115,7 +115,7 @@ public class Admin extends EmilRest
 	}
 
 	@GET
-	@Secured(roles = {Role.RESTRICTED})
+	@Secured(roles = {Role.ADMIN})
 	@Path("/usage-log")
 	@Produces(MediaType.TEXT_PLAIN)
 	public Response getUsageLog()
@@ -127,7 +127,7 @@ public class Admin extends EmilRest
 	}
 
 	@DELETE
-	@Secured(roles = {Role.RESTRICTED})
+	@Secured(roles = {Role.ADMIN})
 	@Path("/usage-log")
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response resetUsageLog()
