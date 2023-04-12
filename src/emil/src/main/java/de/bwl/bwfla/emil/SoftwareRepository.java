@@ -20,6 +20,10 @@
 package de.bwl.bwfla.emil;
 
 import com.openslx.eaas.common.databind.DataUtils;
+import com.openslx.eaas.migration.IMigratable;
+import com.openslx.eaas.migration.MigrationRegistry;
+import com.openslx.eaas.migration.MigrationUtils;
+import com.openslx.eaas.migration.config.MigrationConfig;
 import de.bwl.bwfla.common.datatypes.DigitalObjectMetadata;
 import de.bwl.bwfla.common.datatypes.SoftwareDescription;
 import de.bwl.bwfla.common.datatypes.SoftwarePackage;
@@ -31,6 +35,7 @@ import de.bwl.bwfla.common.services.security.AuthenticatedUser;
 import de.bwl.bwfla.common.services.security.Role;
 import de.bwl.bwfla.common.services.security.Secured;
 import de.bwl.bwfla.common.services.security.UserContext;
+import de.bwl.bwfla.emil.utils.ImportCounts;
 import de.bwl.bwfla.imageproposer.client.ImageProposer;
 import de.bwl.bwfla.objectarchive.util.ObjectArchiveHelper;
 import de.bwl.bwfla.softwarearchive.util.SoftwareArchiveHelper;
@@ -41,6 +46,7 @@ import org.apache.tamaya.inject.api.Config;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.event.Observes;
 import javax.inject.Inject;
 import javax.json.Json;
 import javax.json.JsonObject;
@@ -59,6 +65,7 @@ import java.util.stream.Stream;
 @ApplicationScoped
 @Path("/software-repository")
 public class SoftwareRepository extends EmilRest
+		implements IMigratable
 {
     private SoftwareArchiveHelper swHelper;
     private ObjectArchiveHelper objHelper;
@@ -89,19 +96,16 @@ public class SoftwareRepository extends EmilRest
 			swHelper = new SoftwareArchiveHelper(softwareArchive);
 			objHelper = new ObjectArchiveHelper(objectArchive);
 			imageProposer = new ImageProposer(imageProposerService + "/imageproposer");
-
-			migratePublicSoftwareToZeroConf();
 		}
 		catch (IllegalArgumentException error) {
 			LOG.log(Level.WARNING, "Initializing software-repository failed!", error);
 		}
-		catch (BWFLAException e) {
-			LOG.warning("Error while migrating software!\n" + e);
-		}
 	}
 
-	private void migratePublicSoftwareToZeroConf() throws BWFLAException
+	private void movePublishedSoftwareToZeroConfArchive(MigrationConfig mc) throws Exception
 	{
+		final var counter = ImportCounts.counter();
+
 		LOG.info("Checking if archive is properly set for public software...");
 		final Stream<SoftwarePackage> packages = swHelper.getSoftwarePackages();
 
@@ -120,8 +124,30 @@ public class SoftwareRepository extends EmilRest
 					emilSoftwareObject.setLicenseInformation(sw.getLicence());
 					emilSoftwareObject.setIsOperatingSystem(sw.getIsOperatingSystem());
 					emilSoftwareObject.setNativeFMTs(sw.getSupportedFileFormats());
-					packages().create(emilSoftwareObject).close();
+
+					try (final var response = this.packages().create(emilSoftwareObject)) {
+						if (response.getStatus() == Status.OK.getStatusCode()) {
+							counter.increment(ImportCounts.IMPORTED);
+						}
+						else {
+							counter.increment(ImportCounts.FAILED);
+
+							var message = "Migrating software '" + sw.getId() + "' failed!";
+							if (response.hasEntity()) {
+								message += " Cause: " + response.getEntity().toString();
+							}
+
+							LOG.warning(message);
+						}
+					}
 				});
+
+		final var numMigrated = counter.get(ImportCounts.IMPORTED);
+		final var numFailed = counter.get(ImportCounts.FAILED);
+		final var maxFailureRate = MigrationUtils.getFailureRate(mc);
+		LOG.info("Migrated " + numMigrated + " software-package(s), failed " + numFailed);
+		if (!MigrationUtils.acceptable(numMigrated + numFailed, numFailed, maxFailureRate))
+			throw new BWFLAException("Moving published software to zero-conf archive failed!");
 	}
 
 	public SoftwareCollection getSoftwareCollection()
@@ -558,5 +584,11 @@ public class SoftwareRepository extends EmilRest
 		swo.setIsOperatingSystem(software.getIsOperatingSystem());
 		swo.setQID(software.getQID());
 		return swo;
+	}
+
+	@Override
+	public void register(@Observes MigrationRegistry migrations) throws Exception
+	{
+		migrations.register("move-published-software-to-zeroconf-archive", this::movePublishedSoftwareToZeroConfArchive);
 	}
 }
