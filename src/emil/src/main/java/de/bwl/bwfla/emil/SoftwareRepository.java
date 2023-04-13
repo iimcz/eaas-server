@@ -361,6 +361,10 @@ public class SoftwareRepository extends EmilRest
 					}
 
 					objHelper.importFromMetadata("zero conf", m.toString());
+
+					if(archiveName.startsWith("user")){
+						objHelper.delete(archiveName, swo.getObjectId());
+					}
 					archiveName = "zero conf";
 				}
 
