@@ -1986,20 +1986,27 @@ public class EnvironmentRepository extends EmilRest
 			if (!name.equals("emulators"))
 				continue;
 
-			final var counter = ImportCounts.counter();
 			final var maxFailureRate = MigrationUtils.getFailureRate(mc);
-			final var basedir = Paths.get(config.get("basepath"))
-					.resolve("images");
+			final var basedir = Paths.get(config.get("basepath"));
 
 			LOG.info("Importing legacy emulator-archive...");
-			this.importLegacyEmulatorImagesV1(basedir, "base", counter);
-
-			final var numImported = counter.get(ImportCounts.IMPORTED);
-			final var numFailed = counter.get(ImportCounts.FAILED);
-			LOG.info("Imported " + numImported + " emulator-image(s), failed " + numFailed);
-			if (!MigrationUtils.acceptable(numImported + numFailed, numFailed, maxFailureRate))
-				throw new BWFLAException("Importing legacy emulato-images failed!");
+			this.importLegacyEmulatorImagesV1(basedir, maxFailureRate);
+			this.importLegacyEmulatorTemplatesV1(basedir, maxFailureRate);
 		}
+	}
+
+	private void importLegacyEmulatorImagesV1(java.nio.file.Path basedir, float maxFailureRate) throws Exception
+	{
+		basedir = basedir.resolve("images");
+
+		final var counter = ImportCounts.counter();
+		this.importLegacyEmulatorImagesV1(basedir, "base", counter);
+
+		final var numImported = counter.get(ImportCounts.IMPORTED);
+		final var numFailed = counter.get(ImportCounts.FAILED);
+		LOG.info("Imported " + numImported + " emulator-image(s), failed " + numFailed);
+		if (!MigrationUtils.acceptable(numImported + numFailed, numFailed, maxFailureRate))
+			throw new BWFLAException("Importing legacy emulator-images failed!");
 	}
 
 	private void importLegacyEmulatorImagesV1(java.nio.file.Path basedir, String kind, MultiCounter counter)
@@ -2007,7 +2014,7 @@ public class EnvironmentRepository extends EmilRest
 	{
 		final var srcdir = basedir.resolve(kind);
 		if (!Files.exists(srcdir)) {
-			LOG.info("No " + kind + "-images found!");
+			LOG.info("No emulator-images (" + kind + ") found!");
 			return;
 		}
 
@@ -2044,6 +2051,72 @@ public class EnvironmentRepository extends EmilRest
 			}
 			catch (Exception error) {
 				LOG.log(Level.WARNING, "Importing emulator-image '" + id + "' failed!", error);
+				counter.increment(ImportCounts.FAILED);
+			}
+		};
+
+		final Predicate<java.nio.file.Path> filter = (file) -> !Files.isDirectory(file);
+
+		try (final var files = Files.list(srcdir)) {
+			ParallelProcessors.consumer(filter, importer)
+					.consume(files, executor);
+		}
+	}
+
+	private void importLegacyEmulatorTemplatesV1(java.nio.file.Path basedir, float maxFailureRate) throws Exception
+	{
+		basedir = basedir.resolve("meta-data");
+
+		final var counter = ImportCounts.counter();
+		this.importLegacyEmulatorTemplatesV1(basedir, "template", counter);
+
+		final var numImported = counter.get(ImportCounts.IMPORTED);
+		final var numFailed = counter.get(ImportCounts.FAILED);
+		LOG.info("Imported " + numImported + " emulator-template(s), failed " + numFailed);
+		if (!MigrationUtils.acceptable(numImported + numFailed, numFailed, maxFailureRate))
+			throw new BWFLAException("Importing legacy emulator-templates failed!");
+	}
+
+	private void importLegacyEmulatorTemplatesV1(java.nio.file.Path basedir, String kind, MultiCounter counter)
+			throws Exception
+	{
+		final var srcdir = basedir.resolve(kind);
+		if (!Files.exists(srcdir)) {
+			LOG.info("No emulator-templates (" + kind + ") found!");
+			return;
+		}
+
+		final var templates = imagearchive.api()
+				.v2()
+				.templates();
+
+		final Consumer<java.nio.file.Path> importer = (file) -> {
+			try {
+				// simply import metadata from legacy archive...
+				final var env = Environment.fromValue(Files.readString(file));
+				if (!(env instanceof MachineConfigurationTemplate))
+					return;
+
+				final var template = (MachineConfigurationTemplate) env;
+				final var resources = template.getAbstractDataResource();
+				if (resources != null) {
+					resources.forEach((resource) -> {
+						if (resource instanceof ImageArchiveBinding) {
+							final var binding = (ImageArchiveBinding) resource;
+							binding.setBackendName(null);
+							binding.setUrl(null);
+						}
+					});
+				}
+
+				templates.replace(template.getId(), template);
+				counter.increment(ImportCounts.IMPORTED);
+				LOG.info("Imported emulator-template '" + template.getId() + "'");
+
+				Files.delete(file);
+			}
+			catch (Exception error) {
+				LOG.log(Level.WARNING, "Importing emulator-template '" + file.getFileName() + "' failed!", error);
 				counter.increment(ImportCounts.FAILED);
 			}
 		};
