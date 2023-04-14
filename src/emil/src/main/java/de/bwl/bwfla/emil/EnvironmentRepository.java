@@ -1499,6 +1499,7 @@ public class EnvironmentRepository extends EmilRest
 		migrations.register("import-legacy-emulator-index", this::importLegacyEmulatorIndex);
 		migrations.register("import-legacy-image-archive-v1", this::importLegacyImageArchiveV1);
 		migrations.register("import-legacy-emulator-archive-v1", this::importLegacyEmulatorArchiveV1);
+		migrations.register("fix-checkpointed-environments-v1", this::fixCheckpointedEnvironmentsV1);
 	}
 
 	private void removePublishedDuplicatesFromLegacyImageArchiveV1(MigrationConfig mc) throws Exception
@@ -2127,5 +2128,76 @@ public class EnvironmentRepository extends EmilRest
 			ParallelProcessors.consumer(filter, importer)
 					.consume(files, executor);
 		}
+	}
+
+	private void fixCheckpointedEnvironmentsV1(MigrationConfig mc) throws Exception
+	{
+		// NOTE: legacy code always just appended new checkpoint-binding to the list, without removing
+		//       any existing checkpoint references. Hence, checkpointing an environment restored from
+		//       a checkpoint resulted in all previous checkpoint references left over. Since the order
+		//       in the list is stable between de/serializations of metadata, only each last checkpoint
+		//       binding is valid and should be kept, but all others must be removed!
+
+		final var counter = ImportCounts.counter();
+		final var environments = imagearchive.api()
+				.v2()
+				.environments();
+
+		final Consumer<Environment> fixer = (env) -> {
+			try {
+				final var machine = (MachineConfiguration) env;
+				if (!machine.hasCheckpointBindingId())
+					return;  // not checkpointed!
+
+				final var checkpoints = new ArrayList<String>();
+				final var checkpointBindingId = machine.getCheckpointBindingId();
+				final var resources = machine.getAbstractDataResource();
+				for (final var resource : resources) {
+					if (checkpointBindingId.equals(resource.getId()))
+						checkpoints.add(((ImageArchiveBinding) resource).getImageId());
+				}
+
+				if (checkpoints.size() == 1)
+					return;  // old checkpoints not found!
+
+				if (checkpoints.isEmpty())
+					throw new IllegalStateException("Checkpoint's binding not found!");
+
+				// ignore latest valid checkpoint
+				checkpoints.remove(checkpoints.size() - 1);
+
+				final Predicate<AbstractDataResource> isOldCheckpoint = (r) -> (r instanceof ImageArchiveBinding)
+						&& checkpoints.contains(((ImageArchiveBinding) r).getImageId());
+
+				// remove all old checkpoint-bindings
+				resources.removeIf(isOldCheckpoint);
+				environments.replace(machine.getId(), machine);
+				counter.increment(ImportCounts.IMPORTED);
+
+				final var message = "Removed " + checkpoints.size() + " old checkpoint(s) from environment '"
+						+ env.getId() + "': " + String.join(", ", checkpoints);
+
+				LOG.info(message);
+			}
+			catch (Exception error) {
+				LOG.log(Level.WARNING, "Removing old checkpoints from environment '" + env.getId() + "' failed!", error);
+				counter.increment(ImportCounts.FAILED);
+			}
+		};
+
+		final Predicate<Environment> filter = (env) -> (env instanceof MachineConfiguration);
+
+		LOG.info("Fixing checkpointed environments...");
+		try (final var envs = environments.fetch()) {
+			ParallelProcessors.consumer(filter, fixer)
+					.consume(envs.iterator(), executor);
+		}
+
+		final var numFixed = counter.get(ImportCounts.IMPORTED);
+		final var numFailed = counter.get(ImportCounts.FAILED);
+		final var maxFailureRate = MigrationUtils.getFailureRate(mc);
+		LOG.info("Fixed " + numFixed + " checkpointed environment(s), failed " + numFailed);
+		if (!MigrationUtils.acceptable(numFixed + numFailed, numFailed, maxFailureRate))
+			throw new BWFLAException("Fixing checkpointed environments failed!");
 	}
 }
