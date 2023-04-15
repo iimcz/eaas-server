@@ -5,7 +5,6 @@ import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTCreationException;
 import org.apache.tamaya.ConfigurationProvider;
 
-import java.io.UnsupportedEncodingException;
 import java.time.Duration;
 import java.util.Date;
 import java.util.function.Function;
@@ -39,7 +38,7 @@ public class MachineTokenProvider {
                     .sign(algorithm);
            // System.out.println("Token:"  + token);
             return token;
-        } catch (JWTCreationException | UnsupportedEncodingException exception){
+        } catch (JWTCreationException exception){
             exception.printStackTrace();
             return null;
         }
@@ -63,7 +62,7 @@ public class MachineTokenProvider {
                     .sign(algorithm);
             // System.out.println("Token:"  + token);
             return "Bearer " + token;
-        } catch (JWTCreationException | UnsupportedEncodingException exception){
+        } catch (JWTCreationException exception){
             exception.printStackTrace();
             return null;
         }
