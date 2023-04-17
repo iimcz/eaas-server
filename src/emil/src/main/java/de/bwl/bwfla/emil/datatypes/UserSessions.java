@@ -13,7 +13,6 @@ import org.apache.tamaya.inject.api.Config;
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -167,7 +166,7 @@ public class UserSessions {
                     .build(); //Reusable verifier instance
             DecodedJWT jwt = verifier.verify(jwtString);
             return jwt.getSubject();
-        } catch (JWTVerificationException |UnsupportedEncodingException exception){
+        } catch (JWTVerificationException exception){
             throw new BWFLAException(exception);
         }
     }
