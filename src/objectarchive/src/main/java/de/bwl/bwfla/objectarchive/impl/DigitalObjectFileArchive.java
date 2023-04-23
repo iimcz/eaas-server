@@ -399,6 +399,10 @@ public class DigitalObjectFileArchive implements Serializable, DigitalObjectArch
 			String fileName = entry.getLocalAlias();
 			if (fileName == null || fileName.isEmpty())
 				fileName = entry.getId();
+
+			if (!fileName.equals(entry.getId()))
+				properties.filename = fileName;
+
 			url += "/" + fileName;
 
 			log.warning(" local path url " + url);
