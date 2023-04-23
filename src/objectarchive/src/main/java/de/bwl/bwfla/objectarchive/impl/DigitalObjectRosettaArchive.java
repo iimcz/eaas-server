@@ -70,6 +70,12 @@ public class DigitalObjectRosettaArchive implements Serializable, DigitalObjectA
 	}
 
 	@Override
+	public FileCollection getInternalReference(String objectId) throws BWFLAException
+	{
+		return getObjectReference(objectId);
+	}
+
+	@Override
 	public void importObject(String metsdata) throws BWFLAException {
 
 	}
@@ -89,6 +95,12 @@ public class DigitalObjectRosettaArchive implements Serializable, DigitalObjectA
 	public DigitalObjectMetadata getMetadata(String objectId) {
 		// TODO Auto-generated method stub
 		return null;
+	}
+
+	@Override
+	public DigitalObjectMetadata getUnresolvedMetadata(String objectId) throws BWFLAException
+	{
+		return getMetadata(objectId);
 	}
 
 	@Override

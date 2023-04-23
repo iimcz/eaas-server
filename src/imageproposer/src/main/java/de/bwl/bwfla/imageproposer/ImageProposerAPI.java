@@ -50,7 +50,7 @@ import de.bwl.bwfla.imageproposer.impl.TaskManager;
 import de.bwl.bwfla.imageproposer.impl.UserData;
 import de.bwl.bwfla.restutils.ResponseUtils;
 
-
+//FIXME this is an env proposer not "Images"?
 @Path("api/v1")
 public class ImageProposerAPI
 {

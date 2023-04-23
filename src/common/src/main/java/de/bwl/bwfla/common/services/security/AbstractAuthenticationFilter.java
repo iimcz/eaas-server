@@ -20,7 +20,9 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 import java.net.URL;
+import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
+import java.security.interfaces.ECPublicKey;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -86,7 +88,16 @@ public abstract class AbstractAuthenticationFilter implements ContainerRequestFi
         final DecodedJWT jwt = JWT.decode(token);
         final String keyId = jwt.getKeyId();
         final Jwk jwk = provider.get(keyId);
-        return this.verify(token, Algorithm.RSA256((RSAPublicKey) jwk.getPublicKey()));
+        final PublicKey publicKey = jwk.getPublicKey();
+        final Algorithm algorithm;
+        if (publicKey instanceof RSAPublicKey) {
+            algorithm = Algorithm.RSA256((RSAPublicKey) publicKey);
+        } else if (publicKey instanceof ECPublicKey) {
+            algorithm = Algorithm.ECDSA256((ECPublicKey) publicKey);
+        } else {
+            throw new JWTVerificationException("Key type not supported!");
+        }
+        return this.verify(token, algorithm);
     }
 
     protected DecodedJWT verify(String token, String key) throws Exception

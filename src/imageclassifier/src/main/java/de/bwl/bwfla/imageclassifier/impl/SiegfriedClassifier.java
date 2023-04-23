@@ -5,6 +5,7 @@
 
 package de.bwl.bwfla.imageclassifier.impl;
 
+import com.openslx.eaas.common.databind.DataUtils;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
 import de.bwl.bwfla.imageclassifier.datatypes.Classifier;
@@ -34,8 +35,9 @@ public class SiegfriedClassifier extends Classifier<Siegfried.File> {
                 throw new BWFLAException("Running siegfried failed!");
 
             final String res = result.stdout();
-            // log.warning("{ \"siegfried\" : " + res + "}");
-            return Siegfried.fromJsonValue("{ \"siegfried\" : " + res + "}", Siegfried.class);
+            var sf = Siegfried.fromJsonValue("{ \"siegfried\" : " + res + "}", Siegfried.class);
+            log.info(DataUtils.json().writer().withDefaultPrettyPrinter().writeValueAsString(sf));
+            return sf;
 
         }
         catch(Exception exception) {

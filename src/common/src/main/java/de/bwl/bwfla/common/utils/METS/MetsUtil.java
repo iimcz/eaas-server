@@ -146,7 +146,7 @@ public class MetsUtil {
 
     static FileType createFileEntry(String fileId, String objUrl, String filename) {
 
-        if (fileId == null || fileId.isEmpty())
+        if (fileId == null || !fileId.startsWith("FID-"))
             fileId = "FID-" + UUID.randomUUID().toString();
 
         FileType fT = new FileType();

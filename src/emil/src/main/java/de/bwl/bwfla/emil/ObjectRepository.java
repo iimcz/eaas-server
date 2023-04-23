@@ -22,6 +22,7 @@ package de.bwl.bwfla.emil;
 import com.openslx.eaas.common.databind.DataUtils;
 import com.openslx.eaas.resolver.DataResolver;
 import de.bwl.bwfla.common.datatypes.DigitalObjectMetadata;
+import de.bwl.bwfla.common.datatypes.SoftwarePackage;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.services.rest.ErrorInformation;
 import de.bwl.bwfla.emil.datatypes.ObjectListItem;
@@ -408,6 +409,12 @@ public class ObjectRepository extends EmilRest
 			LOG.info("Changing label for '" + objectId + "'...");
 			try {
 				objHelper.updateObjectLabel(archiveId, objectId, req.getLabel());
+
+				var swPackage = swHelper.getSoftwarePackageById(objectId);
+				if (swPackage != null){
+					LOG.info("Object is Software, Changing SW Label also...");
+					swHelper.changeSoftwareLabel(objectId, req.getLabel());
+				}
 			}
 			catch (BWFLAException e) {
 				throw new RuntimeException(e);

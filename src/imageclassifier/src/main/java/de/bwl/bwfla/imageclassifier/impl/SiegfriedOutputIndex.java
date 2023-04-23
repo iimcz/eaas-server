@@ -122,7 +122,9 @@ public class SiegfriedOutputIndex extends IdentificationOutputIndex<Siegfried.Fi
                     continue;
                 }
                 String fullName = replacePathPrefix(sf.getFilename(), replacement);
-                String fileExtension = getExtension(fullName).toLowerCase();
+                String fileExtension = getExtension(fullName);
+                fileExtension = (fileExtension != null && !fileExtension.isEmpty()) ?
+                        fileExtension.toLowerCase() : "unknown";
                 {
                     LOG.warning("unclassified file: " + fullName + " checking extension " + fileExtension);
                     final List<String> _fileNames = new ArrayList<String>();

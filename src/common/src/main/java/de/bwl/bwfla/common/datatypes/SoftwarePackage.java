@@ -72,6 +72,10 @@ public class SoftwarePackage extends JaxbType
 		return this.getArchive() + ID_SEPARATOR + this.getObjectId();
 	}
 
+	public String getPureId(){
+		return this.getObjectId();
+	}
+
 	public String getName() {
 		return name;
 	}

@@ -33,7 +33,6 @@ standalone-server-build:
   - mvn -f src/pom.xml clean package -Dskip-docs=false -T1C
   - ./ci/scripts/upload-api-docs.sh
         "emil:${PWD}/src/emil/target/apidocs"
-        "environment-proposer:${PWD}/src/environment-proposer/target/apidocs"
         "dig-pub-sharing:${PWD}/src/dig-pub-sharing/target/apidocs"
         "metadata-oaipmh:${PWD}/src/metadata-oaipmh/server/target/apidocs"
   <<: *ear-upload

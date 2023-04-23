@@ -105,6 +105,13 @@ public class ObjectArchiveFacadeWS
 				.resolveObjectResource(objectId, resourceId, method);
 	}
 
+	public String resolveObjectResourceInternally(String archive, String objectId, String resourceId, String method)
+			throws BWFLAException
+	{
+		return this.getArchive(archive)
+				.resolveObjectResourceInternally(objectId, resourceId, method);
+	}
+
 	public @XmlMimeType("application/xml") DataHandler getObjectIds(String archive) throws BWFLAException {
 		DigitalObjectArchive a = getArchive(archive);
 //		return a.getObjectList();
@@ -154,6 +161,11 @@ public class ObjectArchiveFacadeWS
 	public DigitalObjectMetadata getObjectMetadata(String archive, String id) throws BWFLAException {
 		DigitalObjectArchive a = getArchive(archive);
 		return a.getMetadata(id);
+	}
+
+	public DigitalObjectMetadata getObjectMetadataUnresolved(String archive, String id) throws BWFLAException {
+		DigitalObjectArchive a = getArchive(archive);
+		return a.getUnresolvedMetadata(id);
 	}
 
 	public @XmlMimeType("application/xml") DataHandler getObjectMetadataCollection(String archive) throws BWFLAException {

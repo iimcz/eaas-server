@@ -279,6 +279,12 @@ public class DigitalObjectPreservicaArchive implements Serializable, DigitalObje
 	}
 
 	@Override
+	public FileCollection getInternalReference(String objectId) throws BWFLAException
+	{
+		return getObjectReference(objectId);
+	}
+
+	@Override
 	public void importObject(String metsdata) throws BWFLAException {
 
 	}
@@ -317,6 +323,12 @@ public class DigitalObjectPreservicaArchive implements Serializable, DigitalObje
 		if (thumb != null)
 			md.setThumbnail(thumb);
 		return md;
+	}
+
+	@Override
+	public DigitalObjectMetadata getUnresolvedMetadata(String objectId) throws BWFLAException
+	{
+		return getMetadata(objectId);
 	}
 
 	@Override

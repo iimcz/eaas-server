@@ -26,9 +26,11 @@ import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
 import java.util.List;
 
+
 @XmlRootElement
 @XmlAccessorType(XmlAccessType.NONE)
-public class OperatingSystemInformation {
+public class OperatingSystemInformation
+{
 
 	@XmlElement
 	private String id;
@@ -42,35 +44,373 @@ public class OperatingSystemInformation {
 	@XmlElement
 	private List<String> extensions;
 
-	public String getId() {
+	@XmlElement
+	private String qid;
+
+	@XmlElement
+	private boolean kvmAvailable;
+
+	@XmlElement
+	private String disk;
+
+	@XmlElement
+	private String template;
+
+	@XmlElement
+	private boolean runtime;
+
+	@XmlElement
+	private TemplateParameters templateParameters;
+
+	@XmlElement
+	private UiOptions uiOptions;
+
+	public String getId()
+	{
 		return id;
 	}
 
-	public void setId(String id) {
+	public void setId(String id)
+	{
 		this.id = id;
 	}
 
-	public String getLabel() {
+	public String getLabel()
+	{
 		return label;
 	}
 
-	public void setLabel(String label) {
+	public void setLabel(String label)
+	{
 		this.label = label;
 	}
 
-	public List<String> getPuids() {
+	public List<String> getPuids()
+	{
 		return puids;
 	}
 
-	public void setPuids(List<String> puids) {
+	public void setPuids(List<String> puids)
+	{
 		this.puids = puids;
 	}
 
-	public List<String> getExtensions() {
+	public List<String> getExtensions()
+	{
 		return extensions;
 	}
 
-	public void setExtensions(List<String> extensions) {
+	public void setExtensions(List<String> extensions)
+	{
 		this.extensions = extensions;
 	}
+
+	public String getQid()
+	{
+		return qid;
+	}
+
+	public void setQid(String qid)
+	{
+		this.qid = qid;
+	}
+
+	public boolean isKvmAvailable()
+	{
+		return kvmAvailable;
+	}
+
+	public void setKvmAvailable(boolean kvmAvailable)
+	{
+		this.kvmAvailable = kvmAvailable;
+	}
+
+	public String getDisk()
+	{
+		return disk;
+	}
+
+	public void setDisk(String disk)
+	{
+		this.disk = disk;
+	}
+
+	public String getTemplate()
+	{
+		return template;
+	}
+
+	public void setTemplate(String template)
+	{
+		this.template = template;
+	}
+
+	public TemplateParameters getTemplateParameters()
+	{
+		return templateParameters;
+	}
+
+	public void setTemplateParameters(TemplateParameters templateParameters)
+	{
+		this.templateParameters = templateParameters;
+	}
+
+	public UiOptions getUiOptions()
+	{
+		return uiOptions;
+	}
+
+	public void setUiOptions(UiOptions uiOptions)
+	{
+		this.uiOptions = uiOptions;
+	}
+
+	public boolean isRuntime()
+	{
+		return runtime;
+	}
+
+	public void setRuntime(boolean runtime)
+	{
+		this.runtime = runtime;
+	}
+
+	public static class UiOptions
+	{
+		@XmlElement
+		private boolean useXpra;
+
+
+		@XmlElement
+		private String xpraEncoding;
+
+		@XmlElement
+		private boolean useWebRTC;
+
+		public UiOptions()
+		{
+		}
+
+		public boolean isUseXpra()
+		{
+			return useXpra;
+		}
+
+		public void setUseXpra(boolean useXpra)
+		{
+			this.useXpra = useXpra;
+		}
+
+		public String getXpraEncoding()
+		{
+			return xpraEncoding;
+		}
+
+		public void setXpraEncoding(String xpraEncoding)
+		{
+			this.xpraEncoding = xpraEncoding;
+		}
+
+		public boolean isUseWebRTC()
+		{
+			return useWebRTC;
+		}
+
+		public void setUseWebRTC(boolean useWebRTC)
+		{
+			this.useWebRTC = useWebRTC;
+		}
+	}
+
+
+	public static class TemplateParameters
+	{
+
+		@XmlElement
+		private String vga;
+
+		@XmlElement
+		private String cpu;
+
+		@XmlElement
+		private String net;
+
+		@XmlElement
+		private String audio;
+
+		@XmlElement
+		private String memory;
+
+		@XmlElement
+		private String pointer;
+
+		@XmlElement
+		private boolean kvmEnabled;
+
+		@XmlElement
+		private String rom;
+
+		@XmlElement
+		private List<String> models;
+
+		@XmlElement
+		private String chosenModel;
+
+		@XmlElement
+		private String args;
+
+		@XmlElement
+		private String url;
+
+		@XmlElement
+		private boolean fullscreen;
+
+		@XmlElement
+		private String size;
+
+		public TemplateParameters()
+		{
+		}
+
+		public String getVga()
+		{
+			return vga;
+		}
+
+		public void setVga(String vga)
+		{
+			this.vga = vga;
+		}
+
+		public String getCpu()
+		{
+			return cpu;
+		}
+
+		public void setCpu(String cpu)
+		{
+			this.cpu = cpu;
+		}
+
+		public String getNet()
+		{
+			return net;
+		}
+
+		public void setNet(String net)
+		{
+			this.net = net;
+		}
+
+		public String getAudio()
+		{
+			return audio;
+		}
+
+		public void setAudio(String audio)
+		{
+			this.audio = audio;
+		}
+
+		public String getMemory()
+		{
+			return memory;
+		}
+
+		public void setMemory(String memory)
+		{
+			this.memory = memory;
+		}
+
+		public String getPointer()
+		{
+			return pointer;
+		}
+
+		public void setPointer(String pointer)
+		{
+			this.pointer = pointer;
+		}
+
+		public boolean isKvmEnabled()
+		{
+			return kvmEnabled;
+		}
+
+		public void setKvmEnabled(boolean kvmEnabled)
+		{
+			this.kvmEnabled = kvmEnabled;
+		}
+
+		public String getRom()
+		{
+			return rom;
+		}
+
+		public void setRom(String rom)
+		{
+			this.rom = rom;
+		}
+
+		public List<String> getModels()
+		{
+			return models;
+		}
+
+		public void setModels(List<String> models)
+		{
+			this.models = models;
+		}
+
+		public String getChosenModel()
+		{
+			return chosenModel;
+		}
+
+		public void setChosenModel(String chosenModel)
+		{
+			this.chosenModel = chosenModel;
+		}
+
+		public String getArgs()
+		{
+			return args;
+		}
+
+		public void setArgs(String args)
+		{
+			this.args = args;
+		}
+
+		public String getUrl()
+		{
+			return url;
+		}
+
+		public void setUrl(String url)
+		{
+			this.url = url;
+		}
+
+		public boolean isFullscreen()
+		{
+			return fullscreen;
+		}
+
+		public void setFullscreen(boolean fullscreen)
+		{
+			this.fullscreen = fullscreen;
+		}
+
+		public String getSize()
+		{
+			return size;
+		}
+
+		public void setSize(String size)
+		{
+			this.size = size;
+		}
+	}
+
 }

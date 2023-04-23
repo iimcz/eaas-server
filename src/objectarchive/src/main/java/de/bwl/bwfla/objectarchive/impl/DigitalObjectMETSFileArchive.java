@@ -143,6 +143,12 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 	}
 
 	@Override
+	public FileCollection getInternalReference(String objectId) throws BWFLAException
+	{
+		return getObjectReference(objectId);
+	}
+
+	@Override
 	public String getName() {
 		return name;
 	}
@@ -166,6 +172,12 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 
 		DigitalObjectMetadata md = new DigitalObjectMetadata(id, label, label);
 		return md;
+	}
+
+	@Override
+	public DigitalObjectMetadata getUnresolvedMetadata(String objectId) throws BWFLAException
+	{
+		return getMetadata(objectId);
 	}
 
 	@Override

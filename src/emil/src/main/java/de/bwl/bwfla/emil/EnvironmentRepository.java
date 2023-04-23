@@ -156,6 +156,9 @@ public class EnvironmentRepository extends EmilRest
 	@Inject
 	private EmilObjectData objects;
 
+	@Inject
+	private DefaultEnvironmentsBackend defaultEnvs;
+
 
 	@PostConstruct
 	private void initialize()
@@ -260,9 +263,7 @@ public class EnvironmentRepository extends EmilRest
 		}
 
 		try {
-			final String json = new String(Files.readAllBytes(osInfoPath));
-			final String value = "{\"operatingSystems\": " + json + "}";
-			return OperatingSystems.fromJsonValue(value, OperatingSystems.class);
+			return DataUtils.json().mapper().readValue(osInfoPath.toFile(), OperatingSystems.class);
 		}
 		catch (Exception error) {
 			LOG.log(Level.WARNING, "Deserializing OS-metadata failed!", error);
@@ -996,18 +997,7 @@ public class EnvironmentRepository extends EmilRest
 		public Map<String, String> list()
 		{
 			LOG.info("Listing default environments...");
-
-			Map<String, String> map = new HashMap<>();
-			try {
-				List<DefaultEntry> defaultEnvironments = envdb.getDefaultEnvironments();
-				for (DefaultEntry e : defaultEnvironments)
-					map.put(e.getKey(), e.getValue());
-			}
-			catch (BWFLAException error) {
-				LOG.log(Level.WARNING, "Loading default environments failed!", error);
-			}
-
-			return map;
+			return defaultEnvs.getDefaultEnvironments();
 		}
 
 		/** Get configured default environment for a specific operating system ID */
@@ -1018,14 +1008,9 @@ public class EnvironmentRepository extends EmilRest
 		{
 			LOG.info("Looking up default environment for OS '" + osId + "'...");
 
-			try {
-				DefaultEnvironmentResponse response = new DefaultEnvironmentResponse();
-				response.setEnvId(envdb.getDefaultEnvironment(osId));
-				return response;
-			}
-			catch (BWFLAException error) {
-				return new DefaultEnvironmentResponse(error);
-			}
+			DefaultEnvironmentResponse response = new DefaultEnvironmentResponse();
+			response.setEnvId(defaultEnvs.getDefaultEnvironment(osId));
+			return response;
 		}
 
 		/** Set default environment for a specific operating system ID */
@@ -1038,7 +1023,7 @@ public class EnvironmentRepository extends EmilRest
 			LOG.info("Setting default environment for OS '" + osId + "'...");
 
 			try {
-				envdb.setDefaultEnvironment(osId, envId);
+				defaultEnvs.setDefaultEnvironment(osId,envId);
 				return new EmilResponseType();
 			}
 			catch (BWFLAException error) {

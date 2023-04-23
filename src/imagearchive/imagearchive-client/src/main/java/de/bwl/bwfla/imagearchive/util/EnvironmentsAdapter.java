@@ -1,7 +1,6 @@
 package de.bwl.bwfla.imagearchive.util;
 
 import java.net.URL;
-import java.util.List;
 
 import de.bwl.bwfla.api.imagearchive.*;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
@@ -25,29 +24,6 @@ public class EnvironmentsAdapter extends ImageArchiveWSClient {
 
 		String sessionId = archive.importImageFromUrl(backend, ref.toString(), iaMd);
 		return new ImportImageHandle(archive, backend, iaMd.getType(), sessionId);
-	}
-
-	public List<DefaultEntry> getDefaultEnvironments(String backend) throws BWFLAException {
-		connectArchive();
-		return archive.getDefaultEnvironments(backend).getMap();
-	}
-
-	public String getDefaultEnvironment(String osId) throws BWFLAException {
-		return this.getDefaultEnvironment(this.getDefaultBackendName(), osId);
-	}
-
-	public String getDefaultEnvironment(String backend, String osId) throws BWFLAException {
-		connectArchive();
-		return archive.getDefaultEnvironment(backend, osId);
-	}
-
-	public void setDefaultEnvironment(String osId, String envId) throws BWFLAException {
-		this.setDefaultEnvironment(this.getDefaultBackendName(), osId, envId);
-	}
-
-	public void setDefaultEnvironment(String backend, String osId, String envId) throws BWFLAException {
-		connectArchive();
-		archive.setDefaultEnvironment(backend, osId, envId);
 	}
 
 	@Deprecated

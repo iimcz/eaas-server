@@ -65,7 +65,7 @@ public class ObjectClassification {
     private EmilEnvironmentRepository metadata;
 
     @Inject
-    private DatabaseEnvironmentsAdapter environments;
+    private DefaultEnvironmentsBackend defaultEnvs;
 
     @Inject
     private TaskManager taskManager;
@@ -154,19 +154,25 @@ public class ObjectClassification {
         request.url = url;
         request.filename = filename;
         request.classification = this;
-        request.environments = environments;
+        request.environments = defaultEnvs;
         request.metadata = metadata;
         request.input = null;
         request.userCtx = this.getUserContext().clone();
+        request.imagearchive = metadata.getImageArchive();
 
-        return taskManager.submitTask(new ClassificationTask(request));
+
+        var taskId = taskManager.submitTask(new ClassificationTask(request));
+        LOG.info("Starting Classification Task with id " + taskId + " (URL + filename)");
+        return taskId;
     }
 
     public String getEnvironmentsForObject(FileCollection fc, boolean forceCharacterization,
                 boolean forceProposal, boolean noUpdate) throws BWFLAException
     {
         final var userctx = this.getUserContext();
-        return taskManager.submitTask(this.newClassificationTask(fc, forceCharacterization, forceProposal, noUpdate, userctx));
+        var taskId =  taskManager.submitTask(this.newClassificationTask(fc, forceCharacterization, forceProposal, noUpdate, userctx));
+        LOG.info("Starting Classification Task with id " + taskId + " (FileCollection)");
+        return taskId;
     }
 
     public ClassificationTask newClassificationTask(FileCollection fc, boolean forceCharacterization,
@@ -175,12 +181,13 @@ public class ObjectClassification {
         ClassificationTask.ClassifyObjectRequest request = new ClassificationTask.ClassifyObjectRequest();
         request.fileCollection = fc;
         request.classification = this;
-        request.environments = environments;
+        request.environments = defaultEnvs;
         request.metadata = metadata;
         request.input = null;
         request.noUpdate = noUpdate;
         request.forceProposal = forceProposal;
         request.userCtx = userctx.clone();
+        request.imagearchive = metadata.getImageArchive();
 
         if(!forceCharacterization || noUpdate)
             try {

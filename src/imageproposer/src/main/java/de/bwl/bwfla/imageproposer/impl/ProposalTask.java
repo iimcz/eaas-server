@@ -20,7 +20,9 @@
 package de.bwl.bwfla.imageproposer.impl;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
+import com.openslx.eaas.common.databind.DataUtils;
 import de.bwl.bwfla.common.datatypes.identification.DiskType;
 import de.bwl.bwfla.common.datatypes.identification.OperatingSystemInformation;
 import de.bwl.bwfla.common.taskmanager.BlockingTask;
@@ -35,7 +37,7 @@ public class ProposalTask extends BlockingTask<Object>
 	private final ProposalRequest request;
 	private final ImageIndexHandle indexHandle;
 	private final ImageSorter sorter;
-	
+
 	public ProposalTask(ProposalRequest request, ImageIndexHandle index, ImageSorter sorter)
 	{
 		this.request = request;
@@ -43,43 +45,86 @@ public class ProposalTask extends BlockingTask<Object>
 		this.sorter = sorter;
 	}
 
-	private Set<String> getExtensions() throws JAXBException {
+	private Set<String> getExtensions() throws JAXBException
+	{
 		Set<String> extensions = new HashSet<>();
-		for(String key : request.getMediaFormats().keySet()) {
+		for (String key : request.getMediaFormats().keySet()) {
 			if (request.getMediaFormats().get(key) != null) {
 				DiskType diskType = request.getMediaFormats().get(key);
 				log.info(diskType.JSONvalue(true));
 
 				String fileName = diskType.getLocalAlias();
-				if(fileName == null)
+				if (fileName == null)
 					continue;
 
-				int index = fileName.lastIndexOf('.');
-				if(index < 0)
-					continue;
-				String ext = fileName.substring(index + 1);
+				String ext = getFileExtension(fileName);
+				if (ext == null) continue;
 				extensions.add(ext.trim().toLowerCase());
 				log.info("found extension: " + ext);
+			}
+		}
+		if (request.getFiles() != null) {
+			for (var key : request.getFiles().keySet()) {
+				List<String> fileList;
+				if ((fileList = request.getFiles().get(key)) != null) {
+					for (String file : fileList) {
+						String ext = getFileExtension(file);
+						if (ext == null) continue;
+						extensions.add(ext.trim().toLowerCase());
+						log.info("found extension: " + ext);
+					}
+				}
 			}
 		}
 
 		return extensions;
 	}
 
+	private static String getFileExtension(String fileName)
+	{
+		int index = fileName.lastIndexOf('.');
+		if (index < 0)
+			return null;
+		String ext = fileName.substring(index + 1);
+		return ext;
+	}
+
 	private void proposeByExtension(ImageIndex index,
-									Collection<String> images,
-									Map<String, String> missing) throws JAXBException {
+									Collection<String> envIdResults,
+									Map<String, String> osSuggestion) throws JAXBException
+	{
+		log.info("Could not find suitable images through PUIDs, now trying file extensions...");
+
+		Set<String> extensions = getExtensions();
+		if (getExtensions().isEmpty()) {
+			log.info("Did not get any extensions, no results will be added.");
+			return;
+		}
+
+		propose(index, extensions, envIdResults, osSuggestion, true);
+
+	}
+
+	private void proposeByPUID(ImageIndex index,
+							   Collection<String> envIdResults,
+							   Map<String, String> osSuggestion)
+	{
+		Set<String> puids = request.getFileFormats().values().stream()
+				.flatMap(List::stream)
+				.map(ProposalRequest.Entry::getType)
+				.collect(Collectors.toSet());
+
+		propose(index, puids, envIdResults, osSuggestion, false);
+	}
+
+	private void propose(ImageIndex index, Set<String> values, Collection<String> envIdResults, Map<String, String> osSuggestion, boolean byExtension)
+	{
 		int maxCount = 0;
 		HashMap<String, Integer> resultMap = new HashMap<>(); // count hits per environment
 
-		log.info("using file extensions...");
-
-		Set<String> extensions = getExtensions();
-		if(getExtensions().isEmpty())
-			return;
-
-		for (String ext : extensions) {
-			Set<String> envIds = index.getEnvironmentsByExt(ext);
+		log.info("Running propose algorithm...");
+		for (var entry : values) {
+			Set<String> envIds = byExtension ? index.getOsRequirementByExt(entry) : index.getEnvironmentsByPUID(entry);
 			if (envIds != null) {
 				for (String envId : envIds) {
 					Integer count = resultMap.get(envId);
@@ -91,125 +136,56 @@ public class ProposalTask extends BlockingTask<Object>
 					resultMap.put(envId, count);
 				}
 			}
-
-			Set<String> os = index.getOsRequirementByExt(ext);
-			if (os != null) {
-				for (String osId : os) {
-					OperatingSystemInformation operatingSystemInformation = index.getOperatingSystemByPUID(osId);
-					if(operatingSystemInformation != null)
-						missing.put(operatingSystemInformation.getId(), operatingSystemInformation.getLabel());
-				}
-			}
 		}
 
 		log.info("propose: maxCount " + maxCount);
-		for(String proposedEnv : resultMap.keySet())
-		{
+		for (String proposedEnv : resultMap.keySet()) {
+			//only use the environments that support the most file formats, ignore worse ones
+			//TODO What about file count? 5 txt, 1 json, 1 xml - currently an env that supports json + xml but not txt would be suggested
 			Integer count = resultMap.get(proposedEnv);
-			if(count != maxCount)
+			if (count != maxCount)
 				continue;
 
-			images.add(proposedEnv);
+			envIdResults.add(proposedEnv);
 		}
-	}
 
-	private void proposeByPUID(ImageIndex index,
-								  Collection<String> images,
-								  Map<String, String> missing)
-	{
-		int maxCount = 0;
-		HashMap<String, Integer> resultMap = new HashMap<>(); // count hits per environment
-		log.info("Running propose algorithm...");
+		if(maxCount > 0){
+			//Checks if the provided types can be rendered by an operating system where no additional software is required
+			List<OperatingSystemInformation> suggestedOS = byExtension ? index.getOSforExtensions(values, maxCount) : index.getOSforPUID(values, maxCount);
 
-		for(String key : request.getFileFormats().keySet()) {
-			for (ProposalRequest.Entry entry : request.getFileFormats().get(key)) {
-				Set<String> envIds = index.getEnvironmentsByPUID(entry.getType());
-				if (envIds != null) {
-					for (String envId : envIds) {
-						Integer count = resultMap.get(envId);
-						if (count == null)
-							count = 0;
-						count += 1;
-						if (count > maxCount)
-							maxCount = count;
-						resultMap.put(envId, count);
-					}
-				}
-
-				Set<String> os = index.getOsRequirementByPUID(entry.getType());
-				if (os != null) {
-					for (String osId : os) {
-						OperatingSystemInformation operatingSystemInformation = index.getOperatingSystemByPUID(osId);
-						if(operatingSystemInformation != null)
-							missing.put(operatingSystemInformation.getId(), operatingSystemInformation.getLabel());
-					}
-				}
+			for (var os : suggestedOS) {
+				osSuggestion.put(os.getId(), os.getLabel());
 			}
 		}
 
-		log.info("propose: maxCount " + maxCount);
-		for(String proposedEnv : resultMap.keySet())
-		{
-			Integer count = resultMap.get(proposedEnv);
-			if(count != maxCount)
-				continue;
+		// "returns":
+		// envIds is filled with suitable envs that support as many types as possible
+		// osSuggestions: Map of OS ID + Label for suitable Operating Systems
 
-			images.add(proposedEnv);
-		}
 	}
+
 
 	@Override
 	public Proposal execute() throws Exception
 	{
 		// Update the index, if needed!
-		// indexHandle.refresh();
+		indexHandle.refresh();
 
-		Collection<String> images = new HashSet<String>();
-		final Map<String, String> missing = new HashMap<>();
+		Collection<String> suitableEnvironments = new HashSet<String>();
+		final Map<String, String> osSuggestion = new HashMap<>();
 		final ImageIndex index = indexHandle.get();
-//		int numMissingFormats = 0;
-//		int numFoundFormats = 0;
 
-		proposeByPUID(index, images, missing);
-		if(images.isEmpty() && missing.isEmpty())
-		{
-			proposeByExtension(index, images, missing);
+		proposeByPUID(index, suitableEnvironments, osSuggestion);
+		if (suitableEnvironments.isEmpty() && osSuggestion.isEmpty()) {
+			proposeByExtension(index, suitableEnvironments, osSuggestion);
 		}
 
-		images = sorter.sort(images);
-		
-//		log.info("Propose algorithm finished! " + images.size() + " suitable image(s) found.");
-//		if (numMissingFormats > 0) {
-//			final int numFormats = numFoundFormats + numMissingFormats;
-//			log.info("No suitable images found for " + numMissingFormats + " of " + numFormats + " format(s).");
-//		}
-		
-		return new Proposal(images, missing);
-	}
+		suitableEnvironments = sorter.sort(suitableEnvironments);
 
-	//	private  Drive.DriveType getMediaType(DiskType type)
-//	{
-//		Set<String> wikidataSet = new HashSet<>();
-//
-//		if(type.getContent() == null)
-//			return null;
-//
-//		for (Content c : type.getContent())
-//		{
-//			if(c.getWikidata() != null)
-//				wikidataSet.addEnvironmentWithPUID(c.getWikidata());
-//			log.info("found " + c.getType() + "(" + c.getWikidata()+ ")");
-//		}
-//
-//		if(wikidataSet.contains("Q3063042")) {
-//			log.info("found floppy");
-//			return Drive.DriveType.FLOPPY;
-//		}
-//
-//		if(wikidataSet.contains("Q55336682")) {
-//			log.info("found iso");
-//			return Drive.DriveType.CDROM;
-//		}
-//		return null;
-//	}
+		log.info("Propose algorithm finished! " + suitableEnvironments.size() + " suitable environment(s) found:");
+		log.info("Suggested OS: " + DataUtils.json().writer(true).writeValueAsString(osSuggestion));
+
+
+		return new Proposal(suitableEnvironments, osSuggestion);
+	}
 }

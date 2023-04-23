@@ -71,7 +71,8 @@ public class ImageClassifierAPI
 	@AuthenticatedUser
 	private UserContext userctx = null;
 
-
+	//TODO this fails with NPE
+	//however - what is a histogram task, is it used anywhere?
 	/** Submit a new histogram task */
 	@POST
 	@Path("/histograms")

@@ -24,13 +24,12 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.openslx.eaas.common.databind.DataUtils;
 import de.bwl.bwfla.common.datatypes.identification.OperatingSystemInformation;
 
 import javax.json.Json;
@@ -46,12 +45,12 @@ public class ImageIndex
 	private final Map<String, Set<String>> entriesByExt;
 	private final Map<String, Set<String>> operatingSystemsPUIDInv;
 	private final Map<String, Set<String>> operatingSystemsExtInv;
-	private final Map<String, OperatingSystemInformation> operatingSystemPUIDMap;
+	private final Map<String, OperatingSystemInformation> operatingSystems;
 	private final Map<String, OperatingSystemInformation> operatingSystemExtMap;
 
 	public ImageIndex(Map<String, OperatingSystemInformation> operatingSystems)
 	{
-		this.operatingSystemPUIDMap = operatingSystems;
+		this.operatingSystems = operatingSystems;
 		this.entriesByPUID = new HashMap<String, Set<String>>();
 		this.entriesByExt = new HashMap<String, Set<String>>();
 		this.operatingSystemsPUIDInv = new HashMap<String, Set<String>>();
@@ -64,6 +63,7 @@ public class ImageIndex
 		for(String os : operatingSystems.keySet())
 		{
 			OperatingSystemInformation operatingSystemInformation = operatingSystems.get(os);
+
 			if(operatingSystemInformation.getPuids() != null) {
 				for (String puid : operatingSystemInformation.getPuids()) {
 					Set<String> osSet = operatingSystemsPUIDInv.get(puid);
@@ -84,16 +84,36 @@ public class ImageIndex
 						osSet = new HashSet<>();
 						operatingSystemsExtInv.put(ext, osSet);
 					}
-					osSet.add(ext);
+					osSet.add(os);
 				}
 			}
 		}
 
 	}
 
-	public OperatingSystemInformation getOperatingSystemByPUID(String osId)
+
+	private void printEntry(String description, Object map){
+		try {
+			System.out.println(description + ":\n" + DataUtils.json().writer(true).writeValueAsString(map));
+		}
+		catch (JsonProcessingException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	public void printMaps(){
+
+		printEntry("operatingSystems", this.operatingSystems);
+		printEntry("entriesByExt", this.entriesByExt);
+		printEntry("entriesByPUID", this.entriesByPUID);
+		printEntry("operatingSystemsExtInv", this.operatingSystemsExtInv);
+		printEntry("operatingSystemsPUIDInv", this.operatingSystemsPUIDInv);
+		printEntry("operatingSystemExtMap", this.operatingSystemExtMap);
+	}
+
+	public OperatingSystemInformation getOperatingSystemInfo(String osId)
 	{
-		return operatingSystemPUIDMap.get(osId);
+		return operatingSystems.get(osId);
 	}
 
 	public Set<String> getOsRequirementByPUID(String format)
@@ -146,6 +166,32 @@ public class ImageIndex
 		entry.add(image);
 	}
 
+
+	public List<OperatingSystemInformation> getOSforPUID(Set<String> valuesToCheck, int maxCount)
+	{
+		return getOSforValues(valuesToCheck, maxCount, false);
+	}
+
+	public List<OperatingSystemInformation> getOSforExtensions(Set<String> valuesToCheck, int maxCount)
+	{
+		return getOSforValues(valuesToCheck, maxCount, true);
+
+	}
+
+	private List<OperatingSystemInformation> getOSforValues(Set<String> valuesToCheck, int maxCount, boolean isExt)
+	{
+		ArrayList<OperatingSystemInformation> supportedOSs = new ArrayList<>();
+
+		for (var potentialOS : operatingSystems.values()) {
+			var supportedValues = isExt ? potentialOS.getExtensions() : potentialOS.getPuids();
+			if(valuesToCheck.stream().filter(supportedValues::contains).count() >= maxCount){
+				supportedOSs.add(potentialOS);
+			}
+		}
+		return supportedOSs;
+
+	}
+
 	public Set<String> put(String format, Set<String> images)
 	{
 		return entriesByPUID.put(format, images);
@@ -161,6 +207,7 @@ public class ImageIndex
 		return entriesByPUID.size();
 	}
 
+	//TODO unused, can be removed?
 	public static ImageIndex createFromJson(Path path)
 	{
 		final Logger log = Logger.getLogger(ImageIndex.class.getName());
@@ -180,7 +227,8 @@ public class ImageIndex
 		
 		return index;
 	}
-	
+
+	//TODO unused, can be removed?
 	private static ImageIndex parseJson(Path input) throws IOException
 	{
 		final Logger log = Logger.getLogger(ImageIndex.class.getName());

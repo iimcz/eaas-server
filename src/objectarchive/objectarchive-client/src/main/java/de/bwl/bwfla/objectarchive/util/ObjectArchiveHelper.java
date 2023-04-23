@@ -83,10 +83,22 @@ public class ObjectArchiveHelper {
 		return archive.resolveObjectResource(_archive, objectId, resourceId, method);
 	}
 
+	public String resolveObjectResourceInternally(String _archive, String objectId, String resourceId, String method) throws BWFLAException
+	{
+		connectArchive();
+		return archive.resolveObjectResourceInternally(_archive, objectId, resourceId, method);
+	}
+
 	public DigitalObjectMetadata getObjectMetadata(String _archive, String id) throws BWFLAException
 	{
 		connectArchive();
 		return archive.getObjectMetadata(_archive, id);
+	}
+
+	public DigitalObjectMetadata getObjectMetadataUnresolved(String _archive, String id) throws BWFLAException
+	{
+		connectArchive();
+		return archive.getObjectMetadataUnresolved(_archive, id);
 	}
 
 	public void updateObjectLabel(String _archive, String id, String newLabel) throws BWFLAException

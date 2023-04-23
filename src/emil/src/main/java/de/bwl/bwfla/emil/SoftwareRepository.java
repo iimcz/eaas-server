@@ -20,6 +20,10 @@
 package de.bwl.bwfla.emil;
 
 import com.openslx.eaas.common.databind.DataUtils;
+import com.openslx.eaas.migration.IMigratable;
+import com.openslx.eaas.migration.MigrationRegistry;
+import com.openslx.eaas.migration.MigrationUtils;
+import com.openslx.eaas.migration.config.MigrationConfig;
 import de.bwl.bwfla.common.datatypes.DigitalObjectMetadata;
 import de.bwl.bwfla.common.datatypes.SoftwareDescription;
 import de.bwl.bwfla.common.datatypes.SoftwarePackage;
@@ -31,13 +35,18 @@ import de.bwl.bwfla.common.services.security.AuthenticatedUser;
 import de.bwl.bwfla.common.services.security.Role;
 import de.bwl.bwfla.common.services.security.Secured;
 import de.bwl.bwfla.common.services.security.UserContext;
+import de.bwl.bwfla.emil.utils.ImportCounts;
 import de.bwl.bwfla.imageproposer.client.ImageProposer;
 import de.bwl.bwfla.objectarchive.util.ObjectArchiveHelper;
 import de.bwl.bwfla.softwarearchive.util.SoftwareArchiveHelper;
+import gov.loc.mets.FileType;
+import gov.loc.mets.Mets;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.tamaya.inject.api.Config;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.event.Observes;
 import javax.inject.Inject;
 import javax.json.Json;
 import javax.json.JsonObject;
@@ -56,6 +65,7 @@ import java.util.stream.Stream;
 @ApplicationScoped
 @Path("/software-repository")
 public class SoftwareRepository extends EmilRest
+		implements IMigratable
 {
     private SoftwareArchiveHelper swHelper;
     private ObjectArchiveHelper objHelper;
@@ -80,7 +90,7 @@ public class SoftwareRepository extends EmilRest
 
 
     @PostConstruct
-    private void inititialize()
+    private void initialize()
 	{
 		try {
 			swHelper = new SoftwareArchiveHelper(softwareArchive);
@@ -90,7 +100,55 @@ public class SoftwareRepository extends EmilRest
 		catch (IllegalArgumentException error) {
 			LOG.log(Level.WARNING, "Initializing software-repository failed!", error);
 		}
-    }
+	}
+
+	private void movePublishedSoftwareToZeroConfArchive(MigrationConfig mc) throws Exception
+	{
+		final var counter = ImportCounts.counter();
+
+		LOG.info("Checking if archive is properly set for public software...");
+		final Stream<SoftwarePackage> packages = swHelper.getSoftwarePackages();
+
+		packages.filter(SoftwarePackage::isPublic)
+				.filter(sw -> !sw.getArchive().equals("zero conf"))
+				.forEach(sw -> {
+					LOG.info("Found software that needs to be migrated: " + sw.getPureId());
+					var emilSoftwareObject = new EmilSoftwareObject();
+					emilSoftwareObject.setIsPublic(true);
+					emilSoftwareObject.setArchiveId("zero conf");
+					emilSoftwareObject.setId(sw.getPureId());
+					emilSoftwareObject.setLabel(sw.getName());
+					emilSoftwareObject.setAllowedInstances(sw.getNumSeats());
+					emilSoftwareObject.setObjectId(sw.getObjectId());
+					emilSoftwareObject.setQID(sw.getQID());
+					emilSoftwareObject.setLicenseInformation(sw.getLicence());
+					emilSoftwareObject.setIsOperatingSystem(sw.getIsOperatingSystem());
+					emilSoftwareObject.setNativeFMTs(sw.getSupportedFileFormats());
+
+					try (final var response = this.packages().create(emilSoftwareObject)) {
+						if (response.getStatus() == Status.OK.getStatusCode()) {
+							counter.increment(ImportCounts.IMPORTED);
+						}
+						else {
+							counter.increment(ImportCounts.FAILED);
+
+							var message = "Migrating software '" + sw.getId() + "' failed!";
+							if (response.hasEntity()) {
+								message += " Cause: " + response.getEntity().toString();
+							}
+
+							LOG.warning(message);
+						}
+					}
+				});
+
+		final var numMigrated = counter.get(ImportCounts.IMPORTED);
+		final var numFailed = counter.get(ImportCounts.FAILED);
+		final var maxFailureRate = MigrationUtils.getFailureRate(mc);
+		LOG.info("Migrated " + numMigrated + " software-package(s), failed " + numFailed);
+		if (!MigrationUtils.acceptable(numMigrated + numFailed, numFailed, maxFailureRate))
+			throw new BWFLAException("Moving published software to zero-conf archive failed!");
+	}
 
 	public SoftwareCollection getSoftwareCollection()
 	{
@@ -247,44 +305,83 @@ public class SoftwareRepository extends EmilRest
 		@Produces(MediaType.APPLICATION_JSON)
 		public Response create(EmilSoftwareObject swo)
 		{
-			// TODO: maybe, the logic should be split in two separate functions (create() and update())?
-
-			LOG.info("Creating new software-package...");
+			LOG.info("Creating/Changing software-package...");
 
 			try {
-				SoftwarePackage software = swHelper.getSoftwarePackageById(swo.getObjectId());
-				if (software == null) {
-					String archiveName = swo.getArchiveId();
-					if (archiveName == null) {
-						if (userctx != null && userctx.getUserId() != null) {
-							LOG.info("Using user context: " + userctx.getUserId());
-							archiveName = userctx.getUserId();
-						}
+
+				var software = new SoftwarePackage();
+
+				String archiveName = swo.getArchiveId();
+				LOG.info("Got archive name from request: " + archiveName);
+
+				if (archiveName == null) {
+					if (userctx != null && userctx.getUserId() != null) {
+						LOG.info("Using user context: " + userctx.getUserId());
+						archiveName = "user-" + userctx.getUserId(); //TODO can "user-" be used here generally? Potentially migration needed
+						LOG.info("Setting archive name to: " + archiveName);
 					}
-
-					LOG.info("Trying archive '" + swo.getArchiveId() + "' for " + swo.getObjectId());
-					if (archiveName == null || archiveName.startsWith("user")) {
-						LOG.info("Importing object...");
-						DigitalObjectMetadata md = objHelper.getObjectMetadata(archiveName, swo.getObjectId());
-						if (md == null) {
-							LOG.severe("Importing object failed!");
-							return Emil.errorMessageResponse("Failed to access object!");
-						}
-
-						objHelper.importFromMetadata("default", md.getMetsData());
-						archiveName = "default";
-					}
-
-					software = new SoftwarePackage();
-					software.setObjectId(swo.getObjectId());
-					software.setArchive(archiveName);
-					software.setName(swo.getLabel());
 				}
 
-				software.setPublic(swo.getIsPublic());
-				software.setDeleted(false);
-				LOG.info("Setting software-package's visibility to: " + ((software.isPublic()) ? "public" : "private"));
+				//object needs to be reimported to 'zero conf' archive if:
+				//1. archive is null
+				//2. software is from a user object and needs to be published
+				// Software that is from a user object but is private, does NOT need to be reimported!
 
+				if (archiveName == null || (archiveName.startsWith("user") && swo.getIsPublic())) {
+
+					LOG.info("Object needs to be reimported to the default archive, so that it is able to be published as software...");
+					DigitalObjectMetadata md = objHelper.getObjectMetadataUnresolved(archiveName, swo.getObjectId());
+
+					if (md == null) {
+						LOG.severe("Getting object metadata failed!");
+						return Emil.errorMessageResponse("Failed to access object!");
+					}
+
+					// modify metadata to use for import
+					// necessary as we need presigned URLS for the actual files and not packed-iso
+					Mets m = Mets.fromValue(md.getMetsData(), Mets.class);
+					var fs = m.getFileSec();
+					var fgrp = fs.getFileGrp();
+					for (var f : fgrp){
+						var files = f.getFile();
+						for (FileType actFile : files){
+
+							//to properly reimport an object to zero conf we need to
+							//1. get the internal representation of the objects resources (presigned minio URLs)
+							//2. set the id to the original file name which can be retrieved through the original href of the file
+							//a file with id: 'FID-12345...' and href: 'file/myfile.txt'
+							//will then be imported with id: 'myfile.txt' and href: 'http://minio:9000/object-archive...'
+
+							var resolved = objHelper.resolveObjectResourceInternally(archiveName, swo.getObjectId(), actFile.getID(), "GET");
+							FileType.FLocat location = actFile.getFLocat().get(0);
+							var filename = StringUtils.substringAfterLast(location.getHref(), "/");
+							location.setTitle(filename);
+							location.setHref(resolved);
+						}
+					}
+
+					objHelper.importFromMetadata("zero conf", m.toString());
+
+					if(archiveName.startsWith("user")){
+						objHelper.delete(archiveName, swo.getObjectId());
+					}
+					archiveName = "zero conf";
+				}
+
+
+				if(software.isPublic() && !swo.getIsPublic()){
+					LOG.warning("Trying to set public software to back to private. This is prohibited! SW will stay public.");
+				}
+				else{
+					software.setPublic(swo.getIsPublic());
+					LOG.info("Setting software-package's visibility to: " + ((software.isPublic()) ? "public" : "private"));
+				}
+
+
+				software.setObjectId(swo.getObjectId());
+				software.setArchive(archiveName);
+				software.setName(swo.getLabel());
+				software.setDeleted(false);
 				software.setNumSeats(swo.getAllowedInstances());
 				software.setLicence(swo.getLicenseInformation());
 				software.setIsOperatingSystem(swo.getIsOperatingSystem());
@@ -345,6 +442,16 @@ public class SoftwareRepository extends EmilRest
 		{
 			LOG.info("Listing all software-package descriptions...");
 
+			String loggedInUserArchiveName;
+
+			if (userctx != null && userctx.getUserId() != null) {
+				loggedInUserArchiveName = "user-" + userctx.getUserId();
+				LOG.info("Listing software that is accessible to user: " + userctx.getUserId());
+			}
+			else {
+				loggedInUserArchiveName = null;
+			}
+
 			try {
 				final Stream<SoftwareDescription> descriptions = swHelper.getSoftwareDescriptions();
 				if (descriptions == null) {
@@ -359,11 +466,28 @@ public class SoftwareRepository extends EmilRest
 						json.write("status", "0");
 						json.writeStartArray("descriptions");
 						descriptions.forEach((desc) -> {
+
+							var archiveId = (desc.getArchiveId() != null) ? desc.getArchiveId() : "default";
+
+							if (archiveId.startsWith("user")) {
+								//this is reached if the object archive for the software is a (private) user-archive
+
+								if(loggedInUserArchiveName == null){
+									//if no user context is provided, only show default/public software
+									return;
+								}
+
+								else if(!archiveId.equals(loggedInUserArchiveName)){
+									//only show private software where the corresponding archive belongs to the user
+									return;
+								}
+							}
+
 							json.writeStartObject();
 							json.write("id", desc.getSoftwareId());
 							json.write("label", desc.getLabel());
 							json.write("isPublic", desc.isPublic());
-							json.write("archiveId", (desc.getArchiveId() != null) ? desc.getArchiveId() : "default");
+							json.write("archiveId", archiveId);
 							json.write("isOperatingSystem", desc.getIsOperatingSystem());
 							json.writeEnd();
 						});
@@ -464,5 +588,11 @@ public class SoftwareRepository extends EmilRest
 		swo.setIsOperatingSystem(software.getIsOperatingSystem());
 		swo.setQID(software.getQID());
 		return swo;
+	}
+
+	@Override
+	public void register(@Observes MigrationRegistry migrations) throws Exception
+	{
+		migrations.register("move-published-software-to-zeroconf-archive", this::movePublishedSoftwareToZeroConfArchive);
 	}
 }

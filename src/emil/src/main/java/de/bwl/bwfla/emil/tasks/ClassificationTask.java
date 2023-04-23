@@ -5,7 +5,7 @@ import de.bwl.bwfla.common.datatypes.identification.DiskType;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.services.security.UserContext;
 import de.bwl.bwfla.common.taskmanager.BlockingTask;
-import de.bwl.bwfla.emil.DatabaseEnvironmentsAdapter;
+import de.bwl.bwfla.emil.DefaultEnvironmentsBackend;
 import de.bwl.bwfla.emil.EmilEnvironmentRepository;
 import de.bwl.bwfla.emil.ObjectClassification;
 import de.bwl.bwfla.emil.datatypes.EmilEnvironment;
@@ -29,10 +29,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+//This is the currently used ClassificationTask that gets executed when Classification is started via UI
 public class ClassificationTask extends BlockingTask<Object>
 {
-
-
     private static final Logger LOG = Logger.getLogger(ClassificationTask.class.getName());
 
     public ClassificationTask(ClassifyObjectRequest req)
@@ -48,9 +47,7 @@ public class ClassificationTask extends BlockingTask<Object>
 
     private final EmilEnvironmentRepository emilEnvRepo;
     private final ClassifyObjectRequest request;
-
-    @Deprecated
-    private final DatabaseEnvironmentsAdapter envHelper;
+    private final DefaultEnvironmentsBackend envHelper;
     private final ImageArchiveClient imagearchive;
     private final ImageClassifier imageClassifier;
     private final ImageProposer imageProposer;
@@ -59,9 +56,7 @@ public class ClassificationTask extends BlockingTask<Object>
     public static class ClassifyObjectRequest
     {
         public ObjectClassification classification;
-
-        @Deprecated
-        public DatabaseEnvironmentsAdapter environments;
+        public DefaultEnvironmentsBackend environments;
         public ImageArchiveClient imagearchive;
         public EmilEnvironmentRepository metadata;
         public ClassificationResult input;
@@ -82,6 +77,13 @@ public class ClassificationTask extends BlockingTask<Object>
 //             FIXME
 //             we need to call EmilEnvironmentData.init() here
 //        }
+
+        //keep this check for the future
+        //if the imagearchive is null (should not happen anymore), the task will fail without any error logs (=a lot of debugging)
+        if(imagearchive == null){
+            throw new BWFLAException("Could not connect to ImageArchive...");
+        }
+
         HashSet<String> knownEnvironments = new HashSet<>();
         for (String envId : proposedEnvironments) {
             final var exists = imagearchive.api()
@@ -146,93 +148,79 @@ public class ClassificationTask extends BlockingTask<Object>
         return result;
     }
 
-    private ClassificationResult classifyObject(String url, String filename) throws BWFLAException {
+    private ClassificationResult classifyObject(IdentificationRequest req, String fileId) throws BWFLAException{
         try {
-
-            ClassificationResult response;
-
-            IdentificationRequest req = new IdentificationRequest(url, filename);
+            log.info("Classifying object: '" + fileId + "'....");
             Identification<ClassificationEntry> id = this.imageClassifier.getClassification(req, request.userCtx);
 
             HashMap<String, Identification.IdentificationDetails<ClassificationEntry>> data = id.getIdentificationData();
-            if(data == null)
-            {
-                LOG.warning("identification failed for objectID:" + filename );
+            if (data == null) {
+                LOG.warning("Did not get identification data for '" + fileId + "'.");
                 return new ClassificationResult();
             }
 
             HashMap<String, ClassificationResult.IdentificationData> fileFormats = new HashMap<>();
             HashMap<String, DiskType> mediaFormats = new HashMap<>();
+            HashMap<String, List<String>> filesPerFce = new HashMap<>();
 
-            Identification.IdentificationDetails<ClassificationEntry> details = data.get(filename);
-
-            // FIXME
-            List<ClassificationResult.FileFormat> fmts = details.getEntries().stream().map((ClassificationEntry ce) -> {
-                return new ClassificationResult.FileFormat(ce.getType(), ce.getTypeName(), ce.getCount(), ce.getFromDate(), ce.getToDate());
-            }).collect(Collectors.toList());
-
-            ClassificationResult.IdentificationData d = new ClassificationResult.IdentificationData();
-            d.setFileFormats(fmts);
-            fileFormats.put(filename, d);
-
-            if(details.getDiskType() != null)
-                mediaFormats.put(filename, details.getDiskType());
-
-            response = new ClassificationResult(filename, fileFormats, mediaFormats);
-
-            return response;
-        } catch (Throwable t) {
-            LOG.warning("classification failed: " + t.getMessage());
+            if(req.getFileCollection()!= null){
+                for (FileCollectionEntry fce : req.getFileCollection().files) {
+                    setupClassificationData(data, fileFormats, mediaFormats, filesPerFce, fce.getId());
+                }
+            }
+            else if (req.getFileName()!=null) {
+                setupClassificationData(data, fileFormats, mediaFormats, filesPerFce, fileId);
+            }
+            log.info("Successfully classified: '" + fileId + "'.");
+            return new ClassificationResult(fileId, fileFormats, mediaFormats, filesPerFce);
+        }
+        catch (Throwable t) {
+            LOG.warning("Classification failed: " + t.getMessage());
             LOG.log(Level.SEVERE, t.getMessage(), t);
             return new ClassificationResult();
         }
-
     }
 
-    private ClassificationResult classifyObject(FileCollection fc) throws BWFLAException {
-        try {
+    private static void setupClassificationData(HashMap<String, Identification.IdentificationDetails<ClassificationEntry>> data,
+                                                HashMap<String, ClassificationResult.IdentificationData> fileFormats,
+                                                HashMap<String, DiskType> mediaFormats,
+                                                HashMap<String, List<String>> filesPerFce,
+                                                String fileId)
+    {
+        Identification.IdentificationDetails<ClassificationEntry> details = data.get(fileId);
+        if (details == null)
+            return;
 
-            ClassificationResult response;
+        List<ClassificationResult.FileFormat> fmts = getFileFormats(details);
 
-            IdentificationRequest req = new IdentificationRequest(fc, null);
-            Identification<ClassificationEntry> id = this.imageClassifier.getClassification(req, request.userCtx);
+        List<String> files = details
+                .getEntries()
+                .stream()
+                .flatMap((ClassificationEntry ce) -> ce.getFiles().stream())
+                .collect(Collectors.toList());
+        filesPerFce.put(fileId, files);
 
-            HashMap<String, Identification.IdentificationDetails<ClassificationEntry>> data = id.getIdentificationData();
-            if(data == null)
-            {
-                LOG.warning("identification failed for objectID:" + fc.id );
-                return new ClassificationResult();
-            }
+        ClassificationResult.IdentificationData d = new ClassificationResult.IdentificationData();
+        d.setFileFormats(fmts);
+        fileFormats.put(fileId, d);
 
-            HashMap<String, ClassificationResult.IdentificationData> fileFormats = new HashMap<>();
-            HashMap<String, DiskType> mediaFormats = new HashMap<>();
-            for(FileCollectionEntry fce : fc.files)
-            {
-                Identification.IdentificationDetails<ClassificationEntry> details = data.get(fce.getId());
-                if(details == null)
-                    continue;
+        if (details.getDiskType() != null)
+            mediaFormats.put(fileId, details.getDiskType());
+    }
 
-                // FIXME
-                List<ClassificationResult.FileFormat> fmts = details.getEntries().stream().map((ClassificationEntry ce) -> {
-                    return new ClassificationResult.FileFormat(ce.getType(), ce.getTypeName(), ce.getCount(), ce.getFromDate(), ce.getToDate());
-                }).collect(Collectors.toList());
-
-                ClassificationResult.IdentificationData d = new ClassificationResult.IdentificationData();
-                d.setFileFormats(fmts);
-                fileFormats.put(fce.getId(), d);
-
-                if(details.getDiskType() != null)
-                    mediaFormats.put(fce.getId(), details.getDiskType());
-            }
-            response = new ClassificationResult(fc.id, fileFormats, mediaFormats);
-
-            return response;
-        } catch (Throwable t) {
-            LOG.warning("classification failed: " + t.getMessage());
-            LOG.log(Level.SEVERE, t.getMessage(), t);
-            return new ClassificationResult();
-        }
-
+    private static List<ClassificationResult.FileFormat> getFileFormats(Identification.IdentificationDetails<ClassificationEntry> details)
+    {
+        List<ClassificationResult.FileFormat> fmts = details
+                .getEntries()
+                .stream()
+                .map((ClassificationEntry ce) ->
+                        new ClassificationResult.FileFormat(ce.getType(),
+                                ce.getTypeName(),
+                                ce.getCount(),
+                                ce.getFromDate(),
+                                ce.getToDate()))
+                .collect(Collectors.toList());
+        return fmts;
     }
 
     private ClassificationResult propose(ClassificationResult response) {
@@ -265,7 +253,7 @@ public class ClassificationTask extends BlockingTask<Object>
 
         Proposal proposal = null;
         try {
-            proposal = imageProposer.propose(new ProposalRequest(fileFormats, mediaFormats));
+            proposal = imageProposer.propose(new ProposalRequest(fileFormats, mediaFormats, response.getFiles()));
         } catch (InterruptedException e) {
             return new ClassificationResult(new BWFLAException(e));
         }
@@ -279,24 +267,30 @@ public class ClassificationTask extends BlockingTask<Object>
             return new ClassificationResult(new BWFLAException(e));
         }
 
+        //this code checks whether OSs suggestions were returned from the proposal and tries to find
+        //the according default environments, because those are preferred
         List<EnvironmentInfo> defaultList = new ArrayList<>();
         try {
             for (String osId : proposal.getSuggested().keySet()) {
+                log.info("Checking osId: " + osId);
                 ClassificationResult.OperatingSystem os = new ClassificationResult.OperatingSystem(osId, proposal.getSuggested().get(osId));
                 String envId = envHelper.getDefaultEnvironment(osId);
                 if (envId != null) {
+                    log.info("Checking if default env " + envId + "is suitable...");
                     EmilEnvironment emilEnv = emilEnvRepo.getEmilEnvironmentById(envId, request.userCtx);
                     if (emilEnv != null) {
+                        log.info("Got suitable default env: " + envId);
                         EnvironmentInfo info = new EnvironmentInfo(emilEnv.getEnvId(), emilEnv.getTitle());
                         os.setDefaultEnvironment(info);
 
                         EnvironmentInfo infoL = new EnvironmentInfo(emilEnv.getEnvId(), emilEnv.getTitle() + " (D)");
-                        if(!defaultList.stream().filter(o -> o.getId().equals(infoL.getId())).findFirst().isPresent())
+                        if(defaultList.stream().noneMatch(o -> o.getId().equals(infoL.getId())))
                             defaultList.add(infoL);
                     }
                 }
                 suggested.add(os);
             }
+            //this code suggests the global default environment if it is set
             if(defaultList.isEmpty())
             {
                 String envId = envHelper.getDefaultEnvironment(null);
@@ -308,44 +302,31 @@ public class ClassificationTask extends BlockingTask<Object>
                 }
             }
         }
-        catch (BWFLAException e)
+        catch (Exception e)
         {
             LOG.log(Level.SEVERE, e.getMessage(), e);
         }
-        response.setSuggested(suggested);
 
+        //suggested will always only contain operating systems and NOT environments!
+        //but only if an OS is at least as "good" (supports >= types) than environments with software installed
+        response.setSuggested(suggested);
+        //TODO change suggested to contain envs instead of os? Default envs should still be favored, but
+        //TODO suggesting non default envs when they are better makes more sense
+
+        //if default envs were found, add object environments and return these
         if(defaultList.size() > 0) {
             for(EnvironmentInfo info : environmentList)
             {
                 if(info.isObjectEnvironment()) {
-                    LOG.info("adding oe to default list.");
                     defaultList.add(0, info);
                 }
             }
             response.setEnvironmentList(defaultList);
         }
+        //otherwise return all other environments that were proposed by the ProposalTask
         else
             response.setEnvironmentList(environmentList);
 
-//=======
-//        HashMap<String, RelatedQIDS> qidsHashMap = new HashMap<>();
-//        environmentList.forEach(env -> {
-//            String os = null;
-//            try {
-//                os =  ((MachineConfiguration) envHelper.getEnvironmentById(env.getId())).getOperatingSystemId();
-//
-//                if(os != null) {
-//                    // sanitze: remove ':'
-//                    os = os.replace(':', '_');
-//                    qidsHashMap.put(env.getId(), QIDsFinder.findFollowingAndFollowedQIDS(os));
-//                }
-//            } catch (BWFLAException e) {
-//                e.printStackTrace();
-//            }
-//        });
-//
-//        response.setEnvironmentList(environmentList);
-//>>>>>>> master
         return response;
     }
 
@@ -359,12 +340,15 @@ public class ClassificationTask extends BlockingTask<Object>
             return result;
 
         if(request.fileCollection != null) {
-            if (request.input == null || request.input.getMediaFormats().size() == 0)
-                request.input = classifyObject(request.fileCollection);
+            if (request.input == null || request.input.getMediaFormats().size() == 0){
+                request.input = classifyObject(new IdentificationRequest(request.fileCollection, null),
+                        request.fileCollection.id);
+            }
+
         }
         else if(request.url != null && request.filename != null)
         {
-            request.input = classifyObject(request.url, request.filename);
+            request.input = classifyObject(new IdentificationRequest(request.url, request.filename), request.filename);
             return propose(request.input);
         }
         else {
