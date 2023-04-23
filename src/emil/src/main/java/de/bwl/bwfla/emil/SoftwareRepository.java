@@ -353,9 +353,9 @@ public class SoftwareRepository extends EmilRest
 							//will then be imported with id: 'myfile.txt' and href: 'http://minio:9000/object-archive...'
 
 							var resolved = objHelper.resolveObjectResourceInternally(archiveName, swo.getObjectId(), actFile.getID(), "GET");
-							var loc = actFile.getFLocat().get(0).getHref();
-							actFile.setID(StringUtils.substringAfterLast(loc, "/"));
 							FileType.FLocat location = actFile.getFLocat().get(0);
+							var filename = StringUtils.substringAfterLast(location.getHref(), "/");
+							location.setTitle(filename);
 							location.setHref(resolved);
 						}
 					}
