@@ -24,6 +24,9 @@ import com.mongodb.MongoNamespace;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
+import com.mongodb.client.model.Accumulators;
+import com.mongodb.client.model.Aggregates;
+import com.mongodb.client.model.BsonField;
 import com.mongodb.client.model.BulkWriteOptions;
 import com.mongodb.client.model.DeleteManyModel;
 import com.mongodb.client.model.DeleteOneModel;
@@ -296,6 +299,12 @@ public class DocumentCollection<T>
 	public static Update updater()
 	{
 		return new Update();
+	}
+
+	/** Return a new document reducer */
+	public Reducer reducer()
+	{
+		return new Reducer(collection);
 	}
 
 
@@ -607,6 +616,50 @@ public class DocumentCollection<T>
 		private <V> Update combine(BinaryOperator<V> operator, String key, V value)
 		{
 			return this.combine(operator.apply(key, value));
+		}
+	}
+
+	/** Wrapper for a document-reducer */
+	public static class Reducer
+	{
+		private final MongoCollection<?> collection;
+
+		private Reducer(MongoCollection<?> collection)
+		{
+			this.collection = collection;
+		}
+
+		public <E,R> R sum(E expression, R identity)
+		{
+			return this.execute(Accumulators::sum, expression, identity);
+		}
+
+		public <E,R> R max(E expression, R identity)
+		{
+			return this.execute(Accumulators::max, expression, identity);
+		}
+
+		public <E,R> R min(E expression, R identity)
+		{
+			return this.execute(Accumulators::min, expression, identity);
+		}
+
+		public <E,R> R avg(E expression, R identity)
+		{
+			return this.execute(Accumulators::avg, expression, identity);
+		}
+
+		private <E,R> R execute(BiFunction<String, E, BsonField> accumulator, E expression, R identity)
+		{
+			// NOTE: reduce all documents to a single value using only one
+			//       $group aggregation stage and the specified accumulator!
+
+			final var resfield = "result";
+			final var stage = Aggregates.group(null, accumulator.apply(resfield, expression));
+			final var result = collection.aggregate(List.of(stage), Document.class)
+					.first();
+
+			return (result != null) ? result.get(resfield, identity) : identity;
 		}
 	}
 
