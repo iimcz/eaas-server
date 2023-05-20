@@ -24,10 +24,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.module.jaxb.JaxbAnnotationModule;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+import org.bson.Document;
 import org.bson.UuidRepresentation;
+import org.bson.json.JsonWriterSettings;
 import org.mongojack.JacksonMongoCollection;
 import org.mongojack.internal.MongoJackModule;
 
+import java.util.logging.Logger;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -62,9 +65,37 @@ public class DocumentDatabase
 		return StreamSupport.stream(db.listCollectionNames().spliterator(), false);
 	}
 
-	/** Drop this collection */
+	/** Drop this database */
 	public void drop()
 	{
 		db.drop();
+	}
+
+	/** Validate all collections of this database */
+	public void validate()
+	{
+		int numCollections = 0;
+
+		final var settings = JsonWriterSettings.builder()
+				.indent(true)
+				.indentCharacters("    ")
+				.build();
+
+		final var log = Logger.getLogger("DOCUMENT-DB");
+		log.info("Validating database '" + db.getName() + "'...");
+		for (final var cname : db.listCollectionNames()) {
+			final var command = new Document()
+					.append("validate", cname)
+					.append("full", true);
+
+			final var result = db.runCommand(command);
+			log.info("Validation results for collection '" + cname + "':\n" + result.toJson(settings));
+			if (!result.getBoolean("valid"))
+				throw new IllegalStateException("Collection '" + cname + "' is invalid!");
+
+			++numCollections;
+		}
+
+		log.info(numCollections + " collection(s) validated");
 	}
 }
