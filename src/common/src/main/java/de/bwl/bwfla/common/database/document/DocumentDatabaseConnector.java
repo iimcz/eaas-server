@@ -48,6 +48,11 @@ public class DocumentDatabaseConnector
 		final Configuration config = ConfigurationProvider.getConfiguration();
 		final String address = config.get("commonconf.mongodb.address");
 		this.mongo = MongoClients.create(address);
+
+		// validate main database and all collections!
+		final var dbname = config.get("commonconf.mongodb.dbname");
+		this.database(dbname)
+				.validate();
 	}
 
 	@PreDestroy
