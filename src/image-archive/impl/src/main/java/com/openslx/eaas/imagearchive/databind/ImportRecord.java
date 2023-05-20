@@ -199,7 +199,7 @@ public class ImportRecord
 	}
 
 
-	private static final class Fields
+	public static final class Fields
 	{
 		public static final String TASK_ID          = "tid";
 		public static final String PARENT_ID        = "pid";
