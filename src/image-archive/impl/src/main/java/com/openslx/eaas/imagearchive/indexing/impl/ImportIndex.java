@@ -41,20 +41,8 @@ public class ImportIndex extends Index<ImportRecord>
 
 	public int lastid() throws BWFLAException
 	{
-		final var count = this.collection()
-				.count();
-
-		final var records = this.collection()
-				.list();
-
-		try (records) {
-			return records.skip((int) (count - 1))
-					.stream()
-					.map(ImportRecord::taskid)
-					.reduce(0, Integer::max);
-		}
-		catch (Exception error) {
-			throw new BWFLAException(error);
-		}
+		return this.collection()
+				.reducer()
+				.max("$" + ImportRecord.Fields.TASK_ID, 0);
 	}
 }
