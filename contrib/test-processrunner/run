@@ -1,0 +1,4 @@
+#!/bin/sh -eu
+
+mvn package
+java -jar target/test-0.0.1-SNAPSHOT.jar
