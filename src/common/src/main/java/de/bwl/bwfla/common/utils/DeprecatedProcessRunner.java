@@ -813,13 +813,20 @@ public class DeprecatedProcessRunner
 		return this.executeWithResult(true);
 	}
 
+	/** Execute this process and return its stdout + stderr. */
+	public Optional<Result> executeWithResult(boolean verbose) throws IOException
+	{
+		return this.executeWithResult(verbose, false);
+	}
+
 	/**
 	 * Execute this process and return its stdout + stderr.
 	 * @param verbose If set to true, then additionally log stdout and stderr when process terminates.
+	 * @param redirect If set to true, then also redirect stdout and stderr to files.
 	 */
-	public Optional<Result> executeWithResult(boolean verbose) throws IOException
+	public Optional<Result> executeWithResult(boolean verbose, boolean redirect) throws IOException
 	{
-		if (!this.start(false))
+		if (!this.start(redirect))
 			return Optional.empty();
 
 		try {
