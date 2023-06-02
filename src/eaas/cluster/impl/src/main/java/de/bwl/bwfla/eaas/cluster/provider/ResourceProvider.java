@@ -620,7 +620,7 @@ public class ResourceProvider implements IResourceProvider
 					processRunner.redirectStdErrToStdOut(false);
 					processRunner.setLogger(log);
 					try {
-						final DeprecatedProcessRunner.Result result = processRunner.executeWithResult()
+						final DeprecatedProcessRunner.Result result = processRunner.executeWithResult(true, true)
 								.orElse(null);
 
 						return (result != null && result.successful()) ? result.stdout() : null;
