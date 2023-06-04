@@ -39,6 +39,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
@@ -54,7 +55,7 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 	final private String dataPath;
 	final private String exportUrlPrefix;
 	private boolean defaultArchive;
-	private HashMap<String, MetsObject> objects;
+	private Map<String, MetsObject> objects;
 
 	public DigitalObjectMETSFileArchive(String name, String metaDataPath, String dataPath, boolean defaultArchive) throws BWFLAException {
 		this.name = name;
@@ -65,7 +66,6 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 		}
 		this.dataPath = dataPath;
 		this.defaultArchive = defaultArchive;
-		this.objects = new HashMap<>();
 
 		var httpExport = ConfigurationProvider.getConfiguration()
 				.get("objectarchive.httpexport");
@@ -75,7 +75,7 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 
 		this.exportUrlPrefix = httpExport + URLEncoder.encode(name, StandardCharsets.UTF_8);
 
-		load();
+		this.objects = this.load();
 	}
 
 	@Override
@@ -105,16 +105,18 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 		importObject(mets.toString());
 	}
 
-	private void load()
+	private Map<String, MetsObject> load()
 	{
 		int numLoaded = 0;
 		int numFailed = 0;
+
+		final var entries = new ConcurrentHashMap<String, MetsObject>();
 
 		for(File mets: metaDataDir.listFiles())
 		{
 			try {
 				MetsObject obj = new MetsObject(mets);
-				objects.put(obj.getId(), obj);
+				entries.put(obj.getId(), obj);
 				++numLoaded;
 			} catch (BWFLAException e) {
 				log.log(Level.WARNING, "Parsing METS file '" + mets.getAbsolutePath() + "' failed!", e);
@@ -123,6 +125,7 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 		}
 
 		log.info("Loaded " + numLoaded + " METS object(s), failed " + numFailed);
+		return entries;
 	}
 
 	@Override
@@ -198,7 +201,9 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 	}
 
 	@Override
-	public void sync() {	
+	public void sync()
+	{
+		this.objects = this.load();
 	}
 
 	@Override
