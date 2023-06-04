@@ -667,7 +667,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	@Override
 	public void sync()
 	{
-		// Empty!
+		this.cache = this.load();
 	}
 
 	@Override
@@ -1048,5 +1048,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 		log.info("Imported " + numImported + " legacy object(s), failed " + numFailed);
 		if (!MigrationUtils.acceptable(numImported + numFailed, numFailed, MigrationUtils.getFailureRate(mc)))
 			throw new BWFLAException("Importing legacy objects failed!");
+
+		this.sync();
 	}
 }
