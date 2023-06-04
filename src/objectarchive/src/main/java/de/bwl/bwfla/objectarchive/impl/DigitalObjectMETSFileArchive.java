@@ -23,8 +23,10 @@ import com.openslx.eaas.common.databind.DataUtils;
 import com.openslx.eaas.resolver.DataResolver;
 import de.bwl.bwfla.common.datatypes.DigitalObjectMetadata;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
+import de.bwl.bwfla.common.taskmanager.BlockingTask;
 import de.bwl.bwfla.common.taskmanager.TaskState;
 import de.bwl.bwfla.emucomp.api.FileCollection;
+import de.bwl.bwfla.objectarchive.conf.ObjectArchiveSingleton;
 import de.bwl.bwfla.objectarchive.datatypes.*;
 import gov.loc.mets.FileType;
 import gov.loc.mets.Mets;
@@ -207,8 +209,9 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 	}
 
 	@Override
-	public TaskState sync(List<String> objectId) {
-		return null;
+	public TaskState sync(List<String> objectIds)
+	{
+		return ObjectArchiveSingleton.submitTask(new SyncTask(objectIds));
 	}
 
 	@Override
@@ -275,4 +278,42 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 		return -1;
 	}
 
+	private class SyncTask extends BlockingTask<Object>
+	{
+		private final List<String> objectIds;
+
+		public SyncTask(List<String> objectIds)
+		{
+			this.objectIds = objectIds;
+		}
+
+		@Override
+		protected Object execute() throws Exception
+		{
+			int numLoaded = 0;
+			int numFailed = 0;
+
+			Exception exception = null;
+			for (final var objectId : objectIds) {
+				final var file = new File(metaDataDir, objectId);
+				try {
+					final var mets = new MetsObject(file);
+					objects.put(mets.getId(), mets);
+					++numLoaded;
+				} catch (Exception error) {
+					log.log(Level.WARNING, "Parsing METS file '" + file.getAbsolutePath() + "' failed!", error);
+					if (exception == null)
+						exception = error;
+
+					++numFailed;
+				}
+			}
+
+			log.info("Loaded " + numLoaded + " METS object(s), failed " + numFailed);
+			if (exception != null)
+				throw exception;
+
+			return null;
+		}
+	}
 }
