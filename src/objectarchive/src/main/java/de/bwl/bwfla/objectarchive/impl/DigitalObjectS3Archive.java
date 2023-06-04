@@ -30,6 +30,7 @@ import de.bwl.bwfla.blobstore.Bucket;
 import de.bwl.bwfla.common.datatypes.DigitalObjectMetadata;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.services.container.helpers.CdromIsoHelper;
+import de.bwl.bwfla.common.taskmanager.BlockingTask;
 import de.bwl.bwfla.common.taskmanager.TaskState;
 import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
 import de.bwl.bwfla.common.utils.METS.MetsUtil;
@@ -671,9 +672,9 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	}
 
 	@Override
-	public TaskState sync(List<String> objectId)
+	public TaskState sync(List<String> objectIds)
 	{
-		return null;
+		return ObjectArchiveSingleton.submitTask(new SyncTask(objectIds));
 	}
 
 	@Override
@@ -955,6 +956,45 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 			fce.setFileSize(blob.size());
 			fce.setLocalAlias(name);
 			return fce;
+		}
+	}
+
+	private class SyncTask extends BlockingTask<Object>
+	{
+		private final List<String> objectIds;
+
+		public SyncTask(List<String> objectIds)
+		{
+			this.objectIds = objectIds;
+		}
+
+		@Override
+		protected Object execute() throws Exception
+		{
+			int numLoaded = 0;
+			int numFailed = 0;
+
+			Exception exception = null;
+			for (final var objectId : objectIds) {
+				try {
+					final var mets = DigitalObjectS3Archive.this.downloadMetsData(objectId);
+					cache.put(objectId, mets);
+					++numLoaded;
+				}
+				catch (Exception error) {
+					log.log(Level.WARNING, "Loading METS metadata for object '" + objectId + "' failed!", error);
+					if (exception == null)
+						exception = error;
+
+					++numFailed;
+				}
+			}
+
+			log.info("Loaded " + numLoaded + " METS object(s), failed " + numFailed);
+			if (exception != null)
+				throw exception;
+
+			return null;
 		}
 	}
 
