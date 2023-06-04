@@ -63,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -83,6 +84,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	private Bucket bucket;
 	private String basename;
 	private DriveMapper driveMapper;
+	private Map<String, MetsObject> cache;
 
 	@Inject
 	@Config(value="objectarchive.temp_directory")
@@ -136,6 +138,33 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 		}
 
 		this.driveMapper = new DriveMapper();
+		this.cache = this.load();
+	}
+
+	private Map<String, MetsObject> load()
+	{
+		final var counter = UpdateCounts.counter();
+		final var objects = new ConcurrentHashMap<String, MetsObject>();
+		final Consumer<String> downloader = (objectId) -> {
+			try {
+				final var mets = this.downloadMetsData(objectId);
+				objects.put(objectId, mets);
+				counter.increment(UpdateCounts.UPDATED);
+			}
+			catch (Exception error) {
+				log.log(Level.WARNING, "Loading METS metadata for object '" + objectId + "' failed!", error);
+				counter.increment(UpdateCounts.FAILED);
+			}
+		};
+
+		this.listObjectIds()
+				.forEach(downloader);
+
+		final var numCached = counter.get(UpdateCounts.UPDATED);
+		final var numFailed = counter.get(UpdateCounts.FAILED);
+		log.info("Loaded " + numCached + " object(s), failed " + numFailed);
+
+		return objects;
 	}
 
 	private static String strSaveFilename(String filename)
@@ -312,6 +341,12 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	@Override
 	public Stream<String> getObjectIds()
 	{
+		return cache.keySet()
+				.stream();
+	}
+
+	private Stream<String> listObjectIds()
+	{
 		final var prefix = basename + "/";
 
 		try {
@@ -348,6 +383,8 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	{
 		if (objectId == null)
 			throw new BWFLAException("object id was null");
+
+		cache.remove(objectId);
 
 		final Function<Blob, Integer> deleter = (blob) -> {
 			try {
@@ -426,6 +463,8 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 				.contentType("application/xml")
 				.stream(new ByteArrayInputStream(bytes), bytes.length)
 				.upload();
+
+		cache.put(mets.getID(), new MetsObject(metsdata));
 
 		log.info("Object metadata uploaded to: " + blob.name());
 	}
@@ -545,6 +584,20 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	}
 
 	private MetsObject loadMetsData(String objectId) throws BWFLAException
+	{
+		final Function<String, MetsObject> loader = (oid) -> {
+			try {
+				return this.downloadMetsData(oid);
+			}
+			catch (Exception error) {
+				throw new RuntimeException(error);
+			}
+		};
+
+		return cache.computeIfAbsent(objectId, loader);
+	}
+
+	private MetsObject downloadMetsData(String objectId) throws BWFLAException
 	{
 		final var path = this.location(objectId)
 				.resolve(METS_MD_FILENAME);
