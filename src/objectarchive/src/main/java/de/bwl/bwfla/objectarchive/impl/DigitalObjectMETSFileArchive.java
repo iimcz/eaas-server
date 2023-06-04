@@ -23,8 +23,10 @@ import com.openslx.eaas.common.databind.DataUtils;
 import com.openslx.eaas.resolver.DataResolver;
 import de.bwl.bwfla.common.datatypes.DigitalObjectMetadata;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
+import de.bwl.bwfla.common.taskmanager.BlockingTask;
 import de.bwl.bwfla.common.taskmanager.TaskState;
 import de.bwl.bwfla.emucomp.api.FileCollection;
+import de.bwl.bwfla.objectarchive.conf.ObjectArchiveSingleton;
 import de.bwl.bwfla.objectarchive.datatypes.*;
 import gov.loc.mets.FileType;
 import gov.loc.mets.Mets;
@@ -39,6 +41,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
@@ -54,7 +57,7 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 	final private String dataPath;
 	final private String exportUrlPrefix;
 	private boolean defaultArchive;
-	private HashMap<String, MetsObject> objects;
+	private Map<String, MetsObject> objects;
 
 	public DigitalObjectMETSFileArchive(String name, String metaDataPath, String dataPath, boolean defaultArchive) throws BWFLAException {
 		this.name = name;
@@ -65,7 +68,6 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 		}
 		this.dataPath = dataPath;
 		this.defaultArchive = defaultArchive;
-		this.objects = new HashMap<>();
 
 		var httpExport = ConfigurationProvider.getConfiguration()
 				.get("objectarchive.httpexport");
@@ -75,7 +77,7 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 
 		this.exportUrlPrefix = httpExport + URLEncoder.encode(name, StandardCharsets.UTF_8);
 
-		load();
+		this.objects = this.load();
 	}
 
 	@Override
@@ -105,16 +107,18 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 		importObject(mets.toString());
 	}
 
-	private void load()
+	private Map<String, MetsObject> load()
 	{
 		int numLoaded = 0;
 		int numFailed = 0;
+
+		final var entries = new ConcurrentHashMap<String, MetsObject>();
 
 		for(File mets: metaDataDir.listFiles())
 		{
 			try {
 				MetsObject obj = new MetsObject(mets);
-				objects.put(obj.getId(), obj);
+				entries.put(obj.getId(), obj);
 				++numLoaded;
 			} catch (BWFLAException e) {
 				log.log(Level.WARNING, "Parsing METS file '" + mets.getAbsolutePath() + "' failed!", e);
@@ -123,6 +127,7 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 		}
 
 		log.info("Loaded " + numLoaded + " METS object(s), failed " + numFailed);
+		return entries;
 	}
 
 	@Override
@@ -198,12 +203,15 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 	}
 
 	@Override
-	public void sync() {	
+	public void sync()
+	{
+		this.objects = this.load();
 	}
 
 	@Override
-	public TaskState sync(List<String> objectId) {
-		return null;
+	public TaskState sync(List<String> objectIds)
+	{
+		return ObjectArchiveSingleton.submitTask(new SyncTask(objectIds));
 	}
 
 	@Override
@@ -270,4 +278,42 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 		return -1;
 	}
 
+	private class SyncTask extends BlockingTask<Object>
+	{
+		private final List<String> objectIds;
+
+		public SyncTask(List<String> objectIds)
+		{
+			this.objectIds = objectIds;
+		}
+
+		@Override
+		protected Object execute() throws Exception
+		{
+			int numLoaded = 0;
+			int numFailed = 0;
+
+			Exception exception = null;
+			for (final var objectId : objectIds) {
+				final var file = new File(metaDataDir, objectId);
+				try {
+					final var mets = new MetsObject(file);
+					objects.put(mets.getId(), mets);
+					++numLoaded;
+				} catch (Exception error) {
+					log.log(Level.WARNING, "Parsing METS file '" + file.getAbsolutePath() + "' failed!", error);
+					if (exception == null)
+						exception = error;
+
+					++numFailed;
+				}
+			}
+
+			log.info("Loaded " + numLoaded + " METS object(s), failed " + numFailed);
+			if (exception != null)
+				throw exception;
+
+			return null;
+		}
+	}
 }
