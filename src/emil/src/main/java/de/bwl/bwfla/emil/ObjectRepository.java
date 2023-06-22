@@ -180,7 +180,7 @@ public class ObjectRepository extends EmilRest
 
 	public class Actions
 	{
-		@GET
+		@POST
 		@Path("/sync")
 		@Secured(roles = {Role.RESTRICTED})
 		@Produces(MediaType.APPLICATION_JSON)
