@@ -247,14 +247,18 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 
 	public String getThumbnail(String id) throws BWFLAException
 	{
-		final var path = this.location(id)
-				.resolve(THUMBNAIL_FILENAME);
+		// FIXME: implement correct thumbnail lookup!
 
-		final var blob = bucket.blob(path.toString());
-		if (!blob.exists())
-			return null;
+//		final var path = this.location(id)
+//				.resolve(THUMBNAIL_FILENAME);
+//
+//		final var blob = bucket.blob(path.toString());
+//		if (!blob.exists())
+//			return null;
+//
+//		return THUMBNAIL_FILENAME;
 
-		return THUMBNAIL_FILENAME;
+		return null;
 	}
 
 	private void importObjectFile(String objectId, FileCollectionEntry resource, Path tmpdir)
