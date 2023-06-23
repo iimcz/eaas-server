@@ -23,18 +23,18 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
+import com.openslx.eaas.common.util.AtomicMultiCounter;
 import de.bwl.bwfla.common.datatypes.SoftwarePackage;
 import de.bwl.bwfla.common.datatypes.SoftwareDescription;
+import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.softwarearchive.ISoftwareArchive;
-
-import javax.xml.bind.JAXBException;
 
 
 public class SoftwareFileArchive implements Serializable, ISoftwareArchive
@@ -45,6 +45,7 @@ public class SoftwareFileArchive implements Serializable, ISoftwareArchive
 
 	private final String name;
 	private final Path archivePath;
+	private Map<String, SoftwarePackage> cache;
 
 	
 	/**
@@ -55,36 +56,31 @@ public class SoftwareFileArchive implements Serializable, ISoftwareArchive
 	{
 		this.name = name;
 		this.archivePath = Paths.get(path);
+
+		try {
+			this.cache = SoftwareFileArchive.load(archivePath, log);
+		}
+		catch (Exception error) {
+			throw new IllegalStateException("Loading software-archive failed!", error);
+		}
 	}
 
 	@Override
 	public boolean hasSoftwarePackage(String id)
 	{
-		SoftwarePackage swp = getSoftwarePackageById(id);
-		if(swp == null)
-			return false;
-		return !swp.isDeleted();
+		return cache.containsKey(id);
 	}
 
 	@Override
-	public boolean changeSoftwareLabel(String objectId, String newLabel)
+	public boolean changeSoftwareLabel(String id, String newLabel)
 	{
-		log.info("Changing label for software '" + objectId + "'...");
-		final Path path = archivePath.resolve(objectId);
-
-		try {
-			SoftwarePackage swPackage = this.getSoftwarePackageByPath(path);
-			swPackage.setName(newLabel);
-			Files.deleteIfExists(path); //necessary, as new label can be shorter than old one -> faulty XML file
-			Files.write( path, swPackage.value(true).getBytes("UTF-8"), StandardOpenOption.CREATE);
-
-		}
-		catch (IOException | JAXBException e) {
-			log.log(Level.WARNING, "Updating label for software '" + objectId + "' failed!", e);
+		log.info("Changing label for software '" + id + "'...");
+		final var software = this.getSoftwarePackageById(id);
+		if (software == null)
 			return false;
-		}
 
-		return true;
+		software.setName(newLabel);
+		return this.addSoftwarePackage(software);
 	}
 
 	@Override
@@ -97,17 +93,24 @@ public class SoftwareFileArchive implements Serializable, ISoftwareArchive
 			try {
 				Files.deleteIfExists(path);
 			} catch (IOException exception) {
-				log.warning("Deleting software package with ID " + id + " failed!");
-				log.log(Level.SEVERE, exception.getMessage(), exception);
+				log.log(Level.WARNING, "Deleting software package with ID " + id + " failed!", exception);
 			}
 		}
 		try {
-			Files.write( path, software.value(true).getBytes("UTF-8"), StandardOpenOption.CREATE);
-		} catch (IOException | JAXBException e) {
-			e.printStackTrace();
-			log.warning("Writing software package '" + path.toString() + "' failed!");
+			final var data = software.value(true)
+					.getBytes(StandardCharsets.UTF_8);
+
+			Files.write(path, data, StandardOpenOption.CREATE);
+		}
+		catch (Exception error) {
+			log.log(Level.WARNING, "Writing software package '" + path + "' failed!", error);
 			return false;
 		}
+
+		if (software.isDeleted())
+			cache.remove(id);
+		else cache.put(id, software);
+
 		return true;
 	}
 	
@@ -137,58 +140,21 @@ public class SoftwareFileArchive implements Serializable, ISoftwareArchive
 	@Override
 	public SoftwarePackage getSoftwarePackageById(String id)
 	{
-		final Path path = archivePath.resolve(id);
-		if (Files.notExists(path)) {
-			// log.warning("Software package with ID " + id + " does not exist!");
-			return null;
-		}
-		// check if QID is set
-		// if QID => get support file formats *read and write
-		// add PUIDs to array
-		SoftwarePackage sp = this.getSoftwarePackageByPath(path);
-		if(sp == null)
-			return null;
-
-		String QID =  sp.getQID();
-		List<String> formats = sp.getSupportedFileFormats();
-		if (formats == null) {
-			formats = new ArrayList<String>();
-		}
-
-		// if(QID  != null)
-		//	QIDsFinder.extendSupportedFormats(QID, formats);
-		return sp;
+		return cache.get(id);
 	}
 
 	@Override
 	public Stream<String> getSoftwarePackageIds()
 	{
-		try {
-			final DirectoryStream<Path> files = Files.newDirectoryStream(archivePath);
-			return StreamSupport.stream(files.spliterator(), false)
-					.filter((path) -> {
-						SoftwarePackage swp = getSoftwarePackageByPath(path);
-						return swp != null && !swp.isDeleted();
-					}).map((path) -> path.getFileName().toString()).onClose(() -> {
-						try {
-							files.close();
-						}
-						catch (Exception error) {
-							log.log(Level.WARNING, "Closing directory-stream failed!", error);
-						}
-					});
-		}
-		catch (Exception exception) {
-			log.log(Level.SEVERE, "Reading software package directory failed!", exception);
-			return Stream.empty();
-		}
+		return cache.keySet()
+				.stream();
 	}
 
 	@Override
 	public Stream<SoftwarePackage> getSoftwarePackages()
 	{
-		return this.getSoftwarePackageIds()
-				.map(this::getSoftwarePackageById);
+		return cache.values()
+				.stream();
 	}
 	
 	@Override
@@ -197,31 +163,79 @@ public class SoftwareFileArchive implements Serializable, ISoftwareArchive
 		SoftwarePackage software = this.getSoftwarePackageById(id);
 		if (software == null)
 			return null;
-		
-		SoftwareDescription result =  new SoftwareDescription(id, software.getName(), software.getIsOperatingSystem(), software.getArchive());
-		result.setPublic(software.isPublic());
-		return result;
+
+		return SoftwareFileArchive.toSoftwareDescription(software);
 	}
 	
 	@Override
 	public Stream<SoftwareDescription> getSoftwareDescriptions()
 	{
-		return this.getSoftwarePackageIds()
-				.map(this::getSoftwareDescriptionById);
+		return this.getSoftwarePackages()
+				.map(SoftwareFileArchive::toSoftwareDescription);
 	}
-	
+
 
 	/* =============== Internal Methods =============== */
-	
-	private synchronized SoftwarePackage getSoftwarePackageByPath(Path path)
+
+	public enum LoadCounts
 	{
-		try {
-			byte[] encoded = Files.readAllBytes(path);
-			return SoftwarePackage.fromValue(new String(encoded, StandardCharsets.UTF_8), SoftwarePackage.class);
+		LOADED,
+		SKIPPED,
+		FAILED,
+		__LAST;
+
+		public static AtomicMultiCounter counter()
+		{
+			return new AtomicMultiCounter(__LAST.ordinal());
 		}
-		catch (Exception exception) {
-			log.log(Level.WARNING, "Reading software package '" + path.toString() + "' failed!", exception);
-			return null;
+	}
+
+	private static Map<String, SoftwarePackage> load(Path archivePath, Logger log) throws Exception
+	{
+		final var counter = LoadCounts.counter();
+		final var entries = new ConcurrentHashMap<String, SoftwarePackage>();
+		final Consumer<Path> loader = (path) -> {
+			try {
+				final var software = SoftwareFileArchive.getSoftwarePackageByPath(path);
+				if (software.isDeleted()) {
+					counter.increment(LoadCounts.SKIPPED);
+					return;
+				}
+
+				entries.put(software.getId(), software);
+				counter.increment(LoadCounts.LOADED);
+			}
+			catch (Exception error) {
+				log.log(Level.WARNING, "Loading software package '" + path.toString() + "' failed!", error);
+				counter.increment(LoadCounts.FAILED);
+			}
+		};
+
+		try (final var files = Files.list(archivePath)) {
+			files.forEach(loader);
 		}
+
+		final var numCached = counter.get(LoadCounts.LOADED);
+		final var numFailed = counter.get(LoadCounts.FAILED);
+		final var numSkipped = counter.get(LoadCounts.SKIPPED);
+		var summary = "Loaded " + numCached + " software-package(s), failed " + numFailed;
+		if (numSkipped > 0)
+			summary += ", skipped as deleted " + numSkipped;
+
+		log.info(summary);
+		return entries;
+	}
+
+	private static SoftwarePackage getSoftwarePackageByPath(Path path) throws Exception
+	{
+		final var data = Files.readString(path, StandardCharsets.UTF_8);
+		return SoftwarePackage.fromValue(data, SoftwarePackage.class);
+	}
+
+	private static SoftwareDescription toSoftwareDescription(SoftwarePackage software)
+	{
+		final var desc = new SoftwareDescription(software.getId(), software.getName(), software.getIsOperatingSystem(), software.getArchive());
+		desc.setPublic(software.isPublic());
+		return desc;
 	}
 }
