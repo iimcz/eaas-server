@@ -247,14 +247,18 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 
 	public String getThumbnail(String id) throws BWFLAException
 	{
-		final var path = this.location(id)
-				.resolve(THUMBNAIL_FILENAME);
+		// FIXME: implement correct thumbnail lookup!
 
-		final var blob = bucket.blob(path.toString());
-		if (!blob.exists())
-			return null;
+//		final var path = this.location(id)
+//				.resolve(THUMBNAIL_FILENAME);
+//
+//		final var blob = bucket.blob(path.toString());
+//		if (!blob.exists())
+//			return null;
+//
+//		return THUMBNAIL_FILENAME;
 
-		return THUMBNAIL_FILENAME;
+		return null;
 	}
 
 	private void importObjectFile(String objectId, FileCollectionEntry resource, Path tmpdir)
@@ -604,9 +608,6 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 				.resolve(METS_MD_FILENAME);
 
 		final var blob = bucket.blob(path.toString());
-		if (!blob.exists())
-			throw new BWFLAException("METS metadata for object '" + objectId + "' not found!");
-
 		try {
 			final var stream = blob.downloader()
 					.download();
@@ -618,7 +619,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 			}
 		}
 		catch (IOException error) {
-			throw new BWFLAException("Downloading METS file failed!", error);
+			throw new BWFLAException("Downloading METS metadata for object '" + objectId + "' failed!", error);
 		}
 	}
 

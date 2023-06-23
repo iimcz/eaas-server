@@ -172,9 +172,13 @@ public class MetsUtil {
     }
 
     public static Mets export(Mets mets, BiFunction<String, String, String> prefixer) {
+        return MetsUtil.export(mets, prefixer, false);
+    }
+
+    public static Mets export(Mets mets, BiFunction<String, String, String> prefixer, boolean clone) {
         Mets metsRoot = null;
         try {
-            metsRoot = Mets.fromValue(mets.value(), Mets.class);
+            metsRoot = (clone) ? Mets.fromValue(mets.value(), Mets.class) : mets;
         } catch (JAXBException e) {
             e.printStackTrace();
             return null;
