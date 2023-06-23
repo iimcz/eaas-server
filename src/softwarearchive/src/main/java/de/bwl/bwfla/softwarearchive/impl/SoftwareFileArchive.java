@@ -174,6 +174,16 @@ public class SoftwareFileArchive implements Serializable, ISoftwareArchive
 				.map(SoftwareFileArchive::toSoftwareDescription);
 	}
 
+	@Override
+	public void sync() throws BWFLAException
+	{
+		try {
+			this.cache = SoftwareFileArchive.load(archivePath, log);
+		}
+		catch (Exception error) {
+			throw new BWFLAException("Loading software-archive failed!", error);
+		}
+	}
 
 	/* =============== Internal Methods =============== */
 

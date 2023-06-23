@@ -163,6 +163,12 @@ public class SoftwareArchiveHelper
 	{
 		return wsHost;
 	}
+
+	public void sync() throws BWFLAException
+	{
+		this.connectArchive();
+		archive.sync();
+	}
 	
 
 	/* =============== Internal Methods =============== */

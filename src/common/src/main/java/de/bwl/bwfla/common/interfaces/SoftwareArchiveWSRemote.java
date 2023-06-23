@@ -33,4 +33,6 @@ public interface SoftwareArchiveWSRemote
 	public String getName();
 
 	public void delete(String id);
+
+	public void sync() throws BWFLAException;
 }

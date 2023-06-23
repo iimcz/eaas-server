@@ -170,6 +170,13 @@ public class SoftwareArchiveWS implements SoftwareArchiveWSRemote
 		return this.toDataHandler(descriptions, SoftwareDescription.class, JaxbNames.SOFTWARE_DESCRIPTIONS);
 	}
 
+	@Override
+	public void sync() throws BWFLAException
+	{
+		SoftwareArchiveSingleton.getArchiveInstance()
+				.sync();
+	}
+
 	private <T> DataHandler toDataHandler(Stream<T> source, Class<T> klass, String name)
 	{
 		try {
