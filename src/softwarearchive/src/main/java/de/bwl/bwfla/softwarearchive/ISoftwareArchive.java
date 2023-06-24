@@ -23,6 +23,7 @@ import java.util.stream.Stream;
 
 import de.bwl.bwfla.common.datatypes.SoftwarePackage;
 import de.bwl.bwfla.common.datatypes.SoftwareDescription;
+import de.bwl.bwfla.common.exceptions.BWFLAException;
 
 
 /** The internal view on software archive implementation. */
@@ -39,4 +40,6 @@ public interface ISoftwareArchive
 	public SoftwareDescription getSoftwareDescriptionById(String id);
 	public Stream<SoftwareDescription> getSoftwareDescriptions();
 	public String getName();
+
+	public void sync() throws BWFLAException;
 }
