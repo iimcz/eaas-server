@@ -112,11 +112,11 @@ public class SoftwareRepository extends EmilRest
 		packages.filter(SoftwarePackage::isPublic)
 				.filter(sw -> !sw.getArchive().equals("zero conf"))
 				.forEach(sw -> {
-					LOG.info("Found software that needs to be migrated: " + sw.getPureId());
+					LOG.info("Found software that needs to be migrated: " + sw.getId());
 					var emilSoftwareObject = new EmilSoftwareObject();
 					emilSoftwareObject.setIsPublic(true);
 					emilSoftwareObject.setArchiveId("zero conf");
-					emilSoftwareObject.setId(sw.getPureId());
+					emilSoftwareObject.setId(sw.getId());
 					emilSoftwareObject.setLabel(sw.getName());
 					emilSoftwareObject.setAllowedInstances(sw.getNumSeats());
 					emilSoftwareObject.setObjectId(sw.getObjectId());

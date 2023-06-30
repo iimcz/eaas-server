@@ -37,8 +37,6 @@ import de.bwl.bwfla.common.utils.jaxb.JaxbType;
 @XmlRootElement(namespace = "http://bwfla.bwl.de/common/datatypes")
 public class SoftwarePackage extends JaxbType
 {
-	private static final String ID_SEPARATOR = "/";
-
 	@XmlElement(required = true)
 	private String name;
 	
@@ -69,10 +67,6 @@ public class SoftwarePackage extends JaxbType
 	protected String timestamp = Instant.now().toString();
 
 	public String getId() {
-		return this.getArchive() + ID_SEPARATOR + this.getObjectId();
-	}
-
-	public String getPureId(){
 		return this.getObjectId();
 	}
 
