@@ -45,6 +45,37 @@ public class Upload  {
     @Secured(roles = {Role.PUBLIC})
     @POST
     @Path("/")
+    @Consumes(MediaType.APPLICATION_OCTET_STREAM)
+    @Produces(MediaType.APPLICATION_JSON)
+    public UploadResponse upload(InputStream inputStream)
+    {
+        UploadResponse response = new UploadResponse();
+
+        try {
+            final BlobDescription blob = new BlobDescription()
+                    .setDescription("upload")
+                    .setNamespace("user-upload")
+                    .setData(new DataHandler(new InputStreamDataSource(inputStream)))
+                    .setName(UUID.randomUUID().toString());
+
+            BlobHandle handle = BlobStoreClient.get()
+                    .getBlobStorePort(blobStoreWsAddress)
+                    .put(blob);
+
+            UploadResponse.UploadedItem item = new UploadResponse.UploadedItem(new URL(handle.toRestUrl(blobStoreRestAddress)), blob.getName());
+            response.getUploadedItemList().add(item);
+            response.getUploads().add(handle.toRestUrl(blobStoreRestAddress));
+        } catch (IOException | BWFLAException  e) {
+            return new UploadResponse(new BWFLAException(e));
+        }
+
+        System.out.println(response);
+        return response;
+    }
+
+    @Secured(roles = {Role.PUBLIC})
+    @POST
+    @Path("/")
     @Consumes("multipart/form-data")
     @Produces(MediaType.APPLICATION_JSON)
     public UploadResponse upload(MultipartFormDataInput input)
