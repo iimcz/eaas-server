@@ -232,7 +232,7 @@ public class SessionManager
 	private void initialize()
 	{
 		final Runnable trigger = () -> executor.execute(() -> update(executor));
-		final long delay = resourceExpirationTimeout.toMillis() / 5L;
+		final long delay = resourceExpirationTimeout.toMillis() * 8L / 10L;
 		scheduler.scheduleWithFixedDelay(trigger, delay, delay, TimeUnit.MILLISECONDS);
 	}
 
