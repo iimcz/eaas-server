@@ -19,6 +19,7 @@
 
 package de.bwl.bwfla.emil.session;
 
+import de.bwl.bwfla.api.emucomp.Component;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.services.rest.ErrorInformation;
 import de.bwl.bwfla.emil.datatypes.*;
@@ -29,8 +30,9 @@ import de.bwl.bwfla.emil.session.rest.RunningNetworkEnvironmentResponse;
 import de.bwl.bwfla.emil.session.rest.SessionComponent;
 import de.bwl.bwfla.emil.session.rest.SessionResponse;
 import de.bwl.bwfla.emucomp.client.ComponentClient;
-import org.apache.tamaya.inject.api.Config;
+import org.apache.tamaya.ConfigurationProvider;
 
+import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.ws.rs.*;
@@ -47,12 +49,22 @@ public class Sessions
 	@Inject
 	private SessionManager sessions = null;
 
-	@Inject
-	private ComponentClient componentClient;
+	private Component componentWsClient = null;
 
-	@Inject
-	@Config(value = "ws.eaasgw")
-	private String eaasGw;
+	@PostConstruct
+	private void initialize()
+	{
+		try {
+			final var eaasGwAddress = ConfigurationProvider.getConfiguration()
+					.get("ws.eaasgw");
+
+			this.componentWsClient = ComponentClient.get()
+					.getComponentPort(eaasGwAddress);
+		}
+		catch (Exception error) {
+			throw new IllegalStateException("Initializing sessions-endpoint failed!", error);
+		}
+	}
 
 	/* ========================= Public API ========================= */
 
@@ -171,11 +183,11 @@ public class Sessions
 			SessionResponse result = new SessionResponse(((NetworkSession) session).getNetworkRequest());
 			for (de.bwl.bwfla.emil.session.SessionComponent component : session.components()) {
 
-				String type = componentClient.getComponentPort(eaasGw).getComponentType(component.id());
+				String type = componentWsClient.getComponentType(component.id());
 				if(type.equals("nodetcp")) {
 					NetworkResponse networkResponse = new NetworkResponse(session.id());
 
-					Map<String, URI> controlUrls = ComponentClient.controlUrlsToMap(componentClient.getComponentPort(eaasGw).getControlUrls(component.id()));
+					Map<String, URI> controlUrls = ComponentClient.controlUrlsToMap(componentWsClient.getControlUrls(component.id()));
 
 					URI uri = controlUrls.get("info");
 					if(uri == null)
@@ -186,7 +198,7 @@ public class Sessions
 					sc.addNetworkData(networkResponse);
 
 				} else if (type.equals("machine")){
-                    String environmentId = componentClient.getComponentPort(eaasGw).getEnvironmentId(component.id());
+                    String environmentId = componentWsClient.getEnvironmentId(component.id());
                     result.add(new SessionComponent(component.id(), type, environmentId));
 				} else
 					result.add(new SessionComponent(component.id(), type, null));
