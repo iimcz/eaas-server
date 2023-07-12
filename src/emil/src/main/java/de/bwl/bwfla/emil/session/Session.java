@@ -95,13 +95,12 @@ public class Session extends JaxbType
 	public void setLifetime(long lifetime)
 	{
 		this.lifetime = lifetime;
-		detached = true;
+		this.detached = lifetime >= 0L;
 	}
 
 	void setExpirationTimestamp(long timestamp)
 	{
 		this.expirationTimestamp = timestamp;
-		detached = true;
 	}
 
 	public boolean isDetached() {

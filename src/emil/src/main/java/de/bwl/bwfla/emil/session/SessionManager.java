@@ -97,10 +97,12 @@ public class SessionManager
 			session.setName(name);
 			if (lifetime < 0L) {
 				session.setLifetime(-1L);
+				session.setExpirationTimestamp(-1L);
 			}
 			else {
 				session.setLifetime(unit.toMillis(lifetime));
-				session.setExpirationTimestamp(unit.toMillis(lifetime) + timems()); // XXX needed if session is not running.
+				final var timestamp = (lifetime > 0L) ? SessionManager.timems() + session.getLifetime() : Long.MAX_VALUE;
+				session.setExpirationTimestamp(timestamp);
 			}
 
 			if (title != null && title.getComponentName() != null) {
