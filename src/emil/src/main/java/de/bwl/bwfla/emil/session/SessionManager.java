@@ -200,6 +200,8 @@ public class SessionManager
 
 			log.info("Removing " + components.size() + " component(s) from session " + sid + "...");
 
+			// Components should be removed in reverse-creation-order!
+			components.sort((lhs, rhs) -> Long.compare(rhs.getCreationTime(), lhs.getCreationTime()));
 
 			for (final var component : components) {
 				// Release component's resources

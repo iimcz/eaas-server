@@ -20,10 +20,10 @@
 package de.bwl.bwfla.emil.session;
 
 
-public class SessionComponent implements Comparable<SessionComponent>
+public class SessionComponent
 {
 	private final String id;
-
+	private final long ctime;
 	private String networkInfo;
 	private String customName = null;
 
@@ -31,6 +31,7 @@ public class SessionComponent implements Comparable<SessionComponent>
 	public SessionComponent(String id)
 	{
 		this.id = id;
+		this.ctime = System.nanoTime();
 	}
 
 	public String id()
@@ -58,9 +59,8 @@ public class SessionComponent implements Comparable<SessionComponent>
 		this.customName = customName;
 	}
 
-	@Override
-	public int compareTo(SessionComponent other)
+	public long getCreationTime()
 	{
-		return id.compareTo(other.id());
+		return ctime;
 	}
 }
