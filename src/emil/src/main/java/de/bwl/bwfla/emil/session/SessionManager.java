@@ -107,15 +107,11 @@ public class SessionManager
 
 			if (title != null && title.getComponentName() != null) {
 				final String cid = title.getComponentId();
-				final Optional<SessionComponent> result = session.components()
-						.stream()
-						.filter((component) -> cid.contentEquals(component.id()))
-						.findFirst();
+				final var component = session.components()
+						.get(cid);
 
-				if (result.isPresent()) {
-					final SessionComponent component = result.get();
+				if (component != null)
 					component.setCustomName(title.getComponentName());
-				}
 				else log.warning("Component " + cid + " not found in session " + sid + "!");
 			}
 
@@ -178,9 +174,7 @@ public class SessionManager
 		session.onTimeout(endpoint, log);
 
 		final Collection<String> components = session.components()
-				.stream()
-				.map(SessionComponent::id)
-				.collect(Collectors.toList());
+				.keySet();
 
 		this.remove(id, components);
 	}
@@ -192,18 +186,24 @@ public class SessionManager
 	}
 
 	/** Remove session's components */
-	public void remove(String sid, Collection<String> components)
+	public void remove(String sid, Collection<String> cids)
 	{
 		sessions.computeIfPresent(sid, (unused, session) -> {
+			final var components = new ArrayList<SessionComponent>(cids.size());
+			for (final var cid : cids) {
+				final var component = session.components()
+						.remove(cid);
+
+				if (component != null)
+					components.add(component);
+			}
+
 			log.info("Removing " + components.size() + " component(s) from session " + sid + "...");
-			for (String cid : components) {
-				final boolean found = session.components()
-						.removeIf((component) -> cid.equals(component.id()));
 
-				if (!found)
-					continue;
 
+			for (final var component : components) {
 				// Release component's resources
+				final var cid = component.id();
 				try {
 					endpoint.releaseComponent(cid);
 				}

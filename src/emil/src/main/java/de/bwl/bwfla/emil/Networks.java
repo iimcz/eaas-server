@@ -127,7 +127,7 @@ public class Networks {
             final String switchId = components.createComponent(switchComponentRequest).getId();
             final NetworkSession session = new NetworkSession(switchId, networkRequest);
             session.components()
-                    .add(new SessionComponent(switchId));
+                    .put(switchId, new SessionComponent(switchId));
 
             DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
             
@@ -154,7 +154,7 @@ public class Networks {
 
                 final String slirpId = components.createComponent(slirpConfig).getId();
                 session.components()
-                        .add(new SessionComponent(slirpId));
+                        .put(slirpId, new SessionComponent(slirpId));
 
                 Map<String, URI> controlUrls = ComponentClient.controlUrlsToMap(componentWsClient.getControlUrls(slirpId));
                 String slirpUrl = controlUrls.get("ws+ethernet+" + slirpMac).toString();
@@ -204,7 +204,7 @@ public class Networks {
                 nodeComponentRequest.setConfig(nodeConfig);
                 nodeTcpId = components.createComponent(nodeComponentRequest).getId();
                 session.components()
-                        .add(new SessionComponent(nodeTcpId));
+                        .put(nodeTcpId, new SessionComponent(nodeTcpId));
 
                 Map<String, URI> controlUrls = ComponentClient.controlUrlsToMap(componentWsClient.getControlUrls(nodeTcpId));
                 String nodeTcpUrl = controlUrls.get("ws+ethernet+" + nodeConfig.getHwAddress()).toString();
@@ -312,8 +312,8 @@ public class Networks {
 
     private void addComponent(Session session, String switchId, NetworkRequest.ComponentSpec component, boolean addToGroup) {
         try {
-
-            final Map<String, URI> map = this.getControlUrls(component.getComponentId());
+            final var cid = component.getComponentId();
+            final Map<String, URI> map = this.getControlUrls(cid);
 
             URI uri;
             if (component.getHwAddress().equals("auto")) {
@@ -340,16 +340,16 @@ public class Networks {
             }
             
             networkSwitchWsClient.connect(switchId, uri.toString());
-            components.registerNetworkCleanupTask(component.getComponentId(), switchId, uri.toString());
+            components.registerNetworkCleanupTask(cid, switchId, uri.toString());
 
             if (addToGroup) {
                 session.components()
-                        .add(new SessionComponent(component.getComponentId()));
+                        .put(cid, new SessionComponent(cid));
 
-                LOG.info("Added component '" + component.getComponentId() + "' to network '" + session.id() + "'");
+                LOG.info("Added component '" + cid + "' to network '" + session.id() + "'");
             }
 
-            LOG.info("Connected component '" + component.getComponentId() + "' to network '" + session.id() + "'");
+            LOG.info("Connected component '" + cid + "' to network '" + session.id() + "'");
 
         } catch (BWFLAException error) {
             LOG.log(Level.WARNING, "Connecting component '" + component.getComponentId() + "' to network '" + session.id() + "' failed!", error);

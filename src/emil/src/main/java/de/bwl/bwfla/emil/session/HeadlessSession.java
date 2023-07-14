@@ -48,7 +48,7 @@ public class HeadlessSession extends Session {
         );
 
         headlessComponents = componentSpecList;
-        headlessComponents.forEach(c -> components().add(new SessionComponent(c.getComponentId())));
+        headlessComponents.forEach(c -> components().put(c.getComponentId(), new SessionComponent(c.getComponentId())));
     }
 
     public List<ComputeResponse.ComputeResult> getResult(Components endpoint, Logger log) {

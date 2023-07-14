@@ -181,7 +181,7 @@ public class Sessions
 				throw new BWFLAException("session not found " + id);
 
 			SessionResponse result = new SessionResponse(((NetworkSession) session).getNetworkRequest());
-			for (de.bwl.bwfla.emil.session.SessionComponent component : session.components()) {
+			for (de.bwl.bwfla.emil.session.SessionComponent component : session.components().values()) {
 
 				String type = componentWsClient.getComponentType(component.id());
 				if(type.equals("nodetcp")) {
