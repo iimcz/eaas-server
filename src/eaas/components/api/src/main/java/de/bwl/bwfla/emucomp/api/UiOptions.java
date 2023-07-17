@@ -44,6 +44,10 @@ public class UiOptions {
 	@XmlElement(namespace = "http://bwfla.bwl.de/common/datatypes")
 	private String audio_system;
 
+	@XmlElement(namespace = "http://bwfla.bwl.de/common/datatypes")
+	private boolean disableGhostCursor;
+
+
 	public String getForwarding_system() {
 		return forwarding_system;
 	}
@@ -82,5 +86,15 @@ public class UiOptions {
 
 	public void setAudio_system(String audio_system) {
 		this.audio_system = audio_system;
+	}
+
+	public boolean isDisableGhostCursor()
+	{
+		return disableGhostCursor;
+	}
+
+	public void setDisableGhostCursor(boolean disableGhostCursor)
+	{
+		this.disableGhostCursor = disableGhostCursor;
 	}
 }

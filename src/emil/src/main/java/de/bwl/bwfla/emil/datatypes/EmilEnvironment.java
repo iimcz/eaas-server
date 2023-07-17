@@ -77,6 +77,9 @@ public class EmilEnvironment extends JaxbType implements Comparable<EmilEnvironm
 	private boolean shutdownByOs = false;
 
 	@XmlElement(required = false)
+	private boolean disableGhostCursor = false;
+
+	@XmlElement(required = false)
 	private EmilEnvironmentOwner owner;
 
 	@XmlElement(required = false)
@@ -109,6 +112,7 @@ public class EmilEnvironment extends JaxbType implements Comparable<EmilEnvironm
 		enableRelativeMouse = template.enableRelativeMouse;
 		enablePrinting = template.enablePrinting;
 		shutdownByOs = template.shutdownByOs;
+		disableGhostCursor = template.disableGhostCursor;
 		owner = template.owner;
 		permissions = template.permissions;
 		canProcessAdditionalFiles = template.canProcessAdditionalFiles;
@@ -222,6 +226,16 @@ public class EmilEnvironment extends JaxbType implements Comparable<EmilEnvironm
 
 	public void setShutdownByOs(boolean shutdownByOs) {
 		this.shutdownByOs = shutdownByOs;
+	}
+
+	public boolean isDisableGhostCursor()
+	{
+		return disableGhostCursor;
+	}
+
+	public void setDisableGhostCursor(boolean disableGhostCursor)
+	{
+		this.disableGhostCursor = disableGhostCursor;
 	}
 
 	public void setEnablePrinting(boolean enablePrinting) {

@@ -647,6 +647,8 @@ public class EnvironmentRepository extends EmilRest
 				if (uiopts.getHtml5() == null)
 					uiopts.setHtml5(new Html5Options());
 
+				uiopts.setDisableGhostCursor(envReq.isDisableGhostCursor());
+
 				// TODO: refactor
 				if(envReq.getRomId() != null && envReq.getRomLabel() != null)
 				{
@@ -856,6 +858,7 @@ public class EnvironmentRepository extends EmilRest
 			newenv.setEnablePrinting(desc.isEnablePrinting());
 			newenv.setEnableRelativeMouse(desc.isEnableRelativeMouse());
 			newenv.setShutdownByOs(desc.isShutdownByOs());
+			newenv.setDisableGhostCursor(desc.isDisableGhostCursor());
 			newenv.setNetworking(desc.getNetworking());
 			newenv.setCanProcessAdditionalFiles(desc.canProcessAdditionalFiles());
 			newenv.setXpraEncoding(desc.getXpraEncoding());

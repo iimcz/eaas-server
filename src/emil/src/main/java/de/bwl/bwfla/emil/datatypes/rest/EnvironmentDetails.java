@@ -58,6 +58,9 @@ public class EnvironmentDetails {
     private boolean shutdownByOs;
 
     @XmlElement
+    private boolean disableGhostCursor;
+
+    @XmlElement
     private String timeContext;
 
     @XmlElement
@@ -161,6 +164,7 @@ public class EnvironmentDetails {
         this.enableRelativeMouse = emilenv.isEnableRelativeMouse();
         this.enablePrinting = emilenv.isEnablePrinting();
         this.shutdownByOs = emilenv.isShutdownByOs();
+        this.disableGhostCursor = emilenv.isDisableGhostCursor();
         this.timeContext = emilenv.getTimeContext();
         this.networking = emilenv.getNetworking();
 
