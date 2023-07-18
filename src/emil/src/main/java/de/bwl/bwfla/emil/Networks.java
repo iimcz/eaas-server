@@ -343,8 +343,12 @@ public class Networks {
             components.registerNetworkCleanupTask(cid, switchId, uri.toString());
 
             if (addToGroup) {
+                final var sc = new SessionComponent(cid);
+                sc.getNetworkConnectionInfo()
+                        .setEthernetUrl(uri.toString());
+
                 session.components()
-                        .put(cid, new SessionComponent(cid));
+                        .put(cid, sc);
 
                 LOG.info("Added component '" + cid + "' to network '" + session.id() + "'");
             }
@@ -359,21 +363,17 @@ public class Networks {
         }
     }
 
-    private void disconnectComponent(Session session, String switchId, String componentId) throws BWFLAException{
-            final Map<String, URI> map = this.getControlUrls(componentId);
+    private void disconnectComponent(Session session, String switchId, String componentId) throws BWFLAException
+    {
+        final var component = session.components()
+                .get(componentId);
 
-            final String ethurl = map.entrySet().stream()
-                    .filter(e -> e.getKey().startsWith("ws+ethernet+"))
-                    .findAny()
-                    .orElseThrow(() -> new InternalServerErrorException(
-                            Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                                    .entity(new ErrorInformation("Server has encountered an internal error.",
-                                                "Cannot find suitable ethernet URI for requested component."))
-                                    .build()))
-                    .getValue().toString();
+        if (component == null)
+            throw new NotFoundException("Component '" + componentId + "' not found!");
 
-            networkSwitchWsClient.disconnect(switchId, ethurl);
-            LOG.info("Disconnected component '" + componentId + "' from network '" + session.id() + "'");
+        final var netinfo = component.getNetworkConnectionInfo();
+        networkSwitchWsClient.disconnect(switchId, netinfo.getEthernetUrl());
+        LOG.info("Disconnected component '" + componentId + "' from network '" + session.id() + "'");
     }
 
     private void removeComponent(Session session, String switchId, String componentId)  {

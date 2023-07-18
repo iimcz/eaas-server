@@ -24,7 +24,7 @@ public class SessionComponent
 {
 	private final String id;
 	private final long ctime;
-	private String networkInfo;
+	private NetworkConnectionInfo netinfo;
 	private String customName = null;
 
 
@@ -39,14 +39,17 @@ public class SessionComponent
 		return id;
 	}
 
-	public String getNetworkInfo()
+	public NetworkConnectionInfo getNetworkConnectionInfo()
 	{
-		return networkInfo;
+		if (netinfo == null)
+			netinfo = new NetworkConnectionInfo();
+
+		return netinfo;
 	}
 
-	public void setNetworkInfo(String networkInfo)
+	public void setNetworkConnectionInfo(NetworkConnectionInfo info)
 	{
-		this.networkInfo = networkInfo;
+		this.netinfo = info;
 	}
 
 	public String getCustomName()
@@ -62,5 +65,21 @@ public class SessionComponent
 	public long getCreationTime()
 	{
 		return ctime;
+	}
+
+
+	public static class NetworkConnectionInfo
+	{
+		private String ethurl;
+
+		public String getEthernetUrl()
+		{
+			return ethurl;
+		}
+
+		public void setEthernetUrl(String ethurl)
+		{
+			this.ethurl = ethurl;
+		}
 	}
 }
