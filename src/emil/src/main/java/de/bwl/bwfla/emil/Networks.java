@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.json.Json;
@@ -46,6 +47,8 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import com.webcohesion.enunciate.metadata.rs.TypeHint;
+import de.bwl.bwfla.api.emucomp.Component;
+import de.bwl.bwfla.api.emucomp.NetworkSwitch;
 import de.bwl.bwfla.common.services.security.Role;
 import de.bwl.bwfla.common.services.security.Secured;
 import de.bwl.bwfla.common.utils.NetworkUtils;
@@ -57,6 +60,7 @@ import de.bwl.bwfla.emil.session.Session;
 import de.bwl.bwfla.emil.session.SessionComponent;
 import de.bwl.bwfla.emil.session.SessionManager;
 import de.bwl.bwfla.emucomp.api.NodeTcpConfiguration;
+import org.apache.tamaya.ConfigurationProvider;
 import org.apache.tamaya.inject.api.Config;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
@@ -72,23 +76,35 @@ import de.bwl.bwfla.emucomp.client.ComponentClient;
 @ApplicationScoped
 public class Networks {
     @Inject
-    private ComponentClient componentClient;
-
-    @Inject
     private SessionManager sessions = null;
 
     @Inject
     private Components components = null;
 
     @Inject
-    @Config(value = "ws.eaasgw")
-    private String eaasGw;
-
-    @Inject
     @Config(value = "emil.retain_session")
     private String retain_session;
 
+    private Component componentWsClient = null;
+    private NetworkSwitch networkSwitchWsClient = null;
+
     protected final static Logger LOG = Logger.getLogger("NETWORKS");
+
+    @PostConstruct
+    private void initialize()
+    {
+        try {
+            final var client = ComponentClient.get();
+            final var eaasGwAddress = ConfigurationProvider.getConfiguration()
+                    .get("ws.eaasgw");
+
+            this.componentWsClient = client.getComponentPort(eaasGwAddress);
+            this.networkSwitchWsClient = client.getNetworkSwitchPort(eaasGwAddress);
+        }
+        catch (Exception error) {
+            throw new IllegalStateException("Initializing networks failed!", error);
+        }
+    }
 
     @POST
     @Secured(roles = {Role.PUBLIC})
@@ -140,10 +156,10 @@ public class Networks {
                 session.components()
                         .add(new SessionComponent(slirpId));
 
-                Map<String, URI> controlUrls = ComponentClient.controlUrlsToMap(componentClient.getComponentPort(eaasGw).getControlUrls(slirpId));
+                Map<String, URI> controlUrls = ComponentClient.controlUrlsToMap(componentWsClient.getControlUrls(slirpId));
                 String slirpUrl = controlUrls.get("ws+ethernet+" + slirpMac).toString();
 
-                componentClient.getNetworkSwitchPort(eaasGw).connect(switchId, slirpUrl);
+                networkSwitchWsClient.connect(switchId, slirpUrl);
             }
 
 
@@ -190,9 +206,9 @@ public class Networks {
                 session.components()
                         .add(new SessionComponent(nodeTcpId));
 
-                Map<String, URI> controlUrls = ComponentClient.controlUrlsToMap(componentClient.getComponentPort(eaasGw).getControlUrls(nodeTcpId));
+                Map<String, URI> controlUrls = ComponentClient.controlUrlsToMap(componentWsClient.getControlUrls(nodeTcpId));
                 String nodeTcpUrl = controlUrls.get("ws+ethernet+" + nodeConfig.getHwAddress()).toString();
-                componentClient.getNetworkSwitchPort(eaasGw).connect(switchId, nodeTcpUrl);
+                networkSwitchWsClient.connect(switchId, nodeTcpUrl);
 
                 String nodeInfoUrl = controlUrls.get("info").toString();
                 System.out.println(nodeInfoUrl);
@@ -273,7 +289,7 @@ public class Networks {
         try {
             final Session session = this.lookup(id);
             final String switchId = ((NetworkSession) session).getSwitchId();
-            String link = componentClient.getNetworkSwitchPort(eaasGw).wsConnect(switchId);
+            String link = networkSwitchWsClient.wsConnect(switchId);
             final JsonObject json = Json.createObjectBuilder()
                     .add("wsConnection", link)
                     .add("ok", true)
@@ -323,7 +339,7 @@ public class Networks {
                         .build());
             }
             
-            componentClient.getNetworkSwitchPort(eaasGw).connect(switchId, uri.toString());
+            networkSwitchWsClient.connect(switchId, uri.toString());
             components.registerNetworkCleanupTask(component.getComponentId(), switchId, uri.toString());
 
             if (addToGroup) {
@@ -356,7 +372,7 @@ public class Networks {
                                     .build()))
                     .getValue().toString();
 
-            componentClient.getNetworkSwitchPort(eaasGw).disconnect(switchId, ethurl);
+            networkSwitchWsClient.disconnect(switchId, ethurl);
             LOG.info("Disconnected component '" + componentId + "' from network '" + session.id() + "'");
     }
 
@@ -373,8 +389,7 @@ public class Networks {
     }
 
     private Map<String, URI> getControlUrls(String componentId) throws BWFLAException {
-        return ComponentClient.controlUrlsToMap(componentClient.getComponentPort(eaasGw)
-                .getControlUrls(componentId));
+        return ComponentClient.controlUrlsToMap(componentWsClient.getControlUrls(componentId));
     }
 
     private Session lookup(String id) throws NotFoundException
