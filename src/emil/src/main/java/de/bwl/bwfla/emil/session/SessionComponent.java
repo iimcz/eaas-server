@@ -52,6 +52,11 @@ public class SessionComponent
 		this.netinfo = info;
 	}
 
+	public void resetNetworkConnectionInfo()
+	{
+		this.netinfo = null;
+	}
+
 	public String getCustomName()
 	{
 		return customName;
@@ -80,6 +85,11 @@ public class SessionComponent
 		public void setEthernetUrl(String ethurl)
 		{
 			this.ethurl = ethurl;
+		}
+
+		public boolean isConnected()
+		{
+			return ethurl != null;
 		}
 	}
 }

@@ -22,6 +22,7 @@ package de.bwl.bwfla.emil.session;
 import de.bwl.bwfla.common.utils.jaxb.JaxbType;
 import de.bwl.bwfla.emil.Components;
 
+import javax.ws.rs.NotFoundException;
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlElement;
@@ -127,6 +128,15 @@ public class Session extends JaxbType
 	public Map<String, SessionComponent> components()
 	{
 		return components;
+	}
+
+	public SessionComponent component(String cid)
+	{
+		final var component = components.get(cid);
+		if (component == null)
+			throw new NotFoundException("Component '" + cid + "' was not found in network '" + id + "'!");
+
+		return component;
 	}
 
 	public void onTimeout(Components endpoint, Logger log)
