@@ -171,6 +171,7 @@ public class SessionManager
 		if (session == null)
 			return;
 
+		log.info("Removing session '" + id + "'...");
 		session.onTimeout(endpoint, log);
 
 		final Collection<String> components = session.components()
@@ -198,21 +199,30 @@ public class SessionManager
 					components.add(component);
 			}
 
-			log.info("Removing " + components.size() + " component(s) from session " + sid + "...");
+			if (components.size() > 0)
+				log.info("Removing " + components.size() + " component(s) from session " + sid + "...");
 
 			// Components should be removed in reverse-creation-order!
 			components.sort((lhs, rhs) -> Long.compare(rhs.getCreationTime(), lhs.getCreationTime()));
+
+			int numComponentsRemoved = 0;
+			int numComponentsFailed = 0;
 
 			for (final var component : components) {
 				// Release component's resources
 				final var cid = component.id();
 				try {
 					endpoint.releaseComponent(cid);
+					++numComponentsRemoved;
 				}
 				catch (Exception error) {
-					log.log(Level.WARNING, "Releasing component " + cid + " from session " + sid + " failed!");
+					log.log(Level.WARNING, "Releasing component " + cid + " from session " + sid + " failed!", error);
+					++numComponentsFailed;
 				}
 			}
+
+			if (numComponentsRemoved + numComponentsFailed > 0)
+				log.info("Removed " + numComponentsRemoved + " component(s) from session " + sid + ", failed " + numComponentsFailed);
 
 			if (session.components().isEmpty()) {
 				// Session is empty and can be removed!
