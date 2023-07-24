@@ -16,6 +16,7 @@ import javax.activation.DataHandler;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.ws.rs.Consumes;
+import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
@@ -47,22 +48,26 @@ public class Upload  {
     @Path("/")
     @Consumes(MediaType.APPLICATION_OCTET_STREAM)
     @Produces(MediaType.APPLICATION_JSON)
-    public UploadResponse upload(InputStream inputStream)
+    public UploadResponse upload(InputStream inputStream, @HeaderParam("x-eaas-filename") String filename)
     {
         UploadResponse response = new UploadResponse();
 
         try {
             final BlobDescription blob = new BlobDescription()
-                    .setDescription("upload")
                     .setNamespace("user-upload")
                     .setData(new DataHandler(new InputStreamDataSource(inputStream)))
                     .setName(UUID.randomUUID().toString());
+
+            if (filename == null)
+                filename = blob.getName();
+
+            blob.setDescription("user-uploaded file " + filename);
 
             BlobHandle handle = BlobStoreClient.get()
                     .getBlobStorePort(blobStoreWsAddress)
                     .put(blob);
 
-            UploadResponse.UploadedItem item = new UploadResponse.UploadedItem(new URL(handle.toRestUrl(blobStoreRestAddress)), blob.getName());
+            UploadResponse.UploadedItem item = new UploadResponse.UploadedItem(new URL(handle.toRestUrl(blobStoreRestAddress)), filename);
             response.getUploadedItemList().add(item);
             response.getUploads().add(handle.toRestUrl(blobStoreRestAddress));
         } catch (IOException | BWFLAException  e) {
