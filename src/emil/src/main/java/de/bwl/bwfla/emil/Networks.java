@@ -153,13 +153,10 @@ public class Networks {
                     slirpConfig.setNetwork(networkRequest.getNetwork());
 
                 final String slirpId = components.createComponent(slirpConfig).getId();
-                session.components()
-                        .put(slirpId, new SessionComponent(slirpId));
+                final var slirpUrl = this.getControlUrls(slirpId)
+                        .get("ws+ethernet+" + slirpMac);
 
-                Map<String, URI> controlUrls = ComponentClient.controlUrlsToMap(componentWsClient.getControlUrls(slirpId));
-                String slirpUrl = controlUrls.get("ws+ethernet+" + slirpMac).toString();
-
-                networkSwitchWsClient.connect(switchId, slirpUrl);
+                this.connect(session, slirpId, slirpUrl.toString());
             }
 
 
