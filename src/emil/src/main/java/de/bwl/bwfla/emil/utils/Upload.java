@@ -78,6 +78,7 @@ public class Upload  {
         return response;
     }
 
+    @Deprecated
     @Secured(roles = {Role.PUBLIC})
     @POST
     @Path("/")
