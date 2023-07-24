@@ -119,13 +119,14 @@ public class Networks {
                     .build());
         }
 
+        NetworkSession session = null;
         NetworkResponse networkResponse = null;
         try {
             // a switch comes included with every network group
             final SwitchComponentRequest switchComponentRequest = new SwitchComponentRequest();
             switchComponentRequest.setConfig(new NetworkSwitchConfiguration());
             final String switchId = components.createComponent(switchComponentRequest).getId();
-            final NetworkSession session = new NetworkSession(switchId, networkRequest);
+            session = new NetworkSession(switchId, networkRequest);
             session.components()
                     .put(switchId, new SessionComponent(switchId));
 
@@ -220,6 +221,9 @@ public class Networks {
         }
         catch (Exception error) {
             LOG.log(Level.WARNING, "Creating network failed!", error);
+            if (session != null)
+                sessions.remove(session.id());
+
             throw Components.newInternalError(error);
         }
     }
