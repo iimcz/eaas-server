@@ -36,7 +36,6 @@ import javax.ws.rs.BadRequestException;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
-import javax.ws.rs.InternalServerErrorException;
 import javax.ws.rs.NotFoundException;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -261,12 +260,9 @@ public class Networks {
         }
         catch (BWFLAException e)
         {
-            LOG.log(Level.WARNING, "Disconnecting component '" + componentId + "' from network '" + id + "' failed!", e);
-            throw new ServerErrorException(Response
-                    .status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(new ErrorInformation(
-                            "Could not disconnect component: " + componentId , e.getMessage()))
-                    .build());
+            final var message = "Disconnecting component '" + componentId + "' from network '" + id + "' failed!";
+            LOG.log(Level.WARNING, message, e);
+            throw Networks.error(Response.Status.INTERNAL_SERVER_ERROR, message, e.getMessage());
         }
     }
 
@@ -295,13 +291,11 @@ public class Networks {
                     .build();
 
             return Emil.createResponse(Response.Status.OK, json.toString());
-        } catch (BWFLAException e) {
-            LOG.log(Level.WARNING, "Connecting to network '" + id + "' failed!", e);
-            throw new ServerErrorException(Response
-                    .status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(new ErrorInformation(
-                            "Could not find switch for session: " + id , e.getMessage()))
-                    .build());
+        }
+        catch (BWFLAException exception) {
+            final var message = "Connecting to network '" + id + "' failed!";
+            LOG.log(Level.WARNING, message, exception);
+            throw Networks.error(Response.Status.INTERNAL_SERVER_ERROR, message, exception.getMessage());
         }
     }
 
@@ -317,12 +311,11 @@ public class Networks {
                 uri = map.entrySet().stream()
                         .filter(e -> e.getKey().startsWith("ws+ethernet+"))
                         .findAny()
-                        .orElseThrow(() -> new InternalServerErrorException(
-                                Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                                        .entity(new ErrorInformation(
-                                                "Cannot find suitable ethernet URI for requested component.",
-                                                "Requested component has either been stopped or is not suitable for networking"))
-                                        .build()))
+                        .orElseThrow(() -> {
+                            final var message = "Cannot find suitable ethernet URI for requested component.";
+                            final var details = "Requested component has either been stopped or is not suitable for networking";
+                            return Networks.error(Response.Status.INTERNAL_SERVER_ERROR, message, details);
+                        })
                         .getValue();
             }
             else {
@@ -330,20 +323,17 @@ public class Networks {
             }
 
             if(uri == null) {
-                throw new ServerErrorException(Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                        .entity(new ErrorInformation(
-                                "Cannot find suitable ethernet URI for requested component.",
-                                "Requested component has either been stopped or is not suitable for networking"))
-                        .build());
+                final var message = "Cannot find suitable ethernet URI for requested component.";
+                final var details = "Requested component has either been stopped or is not suitable for networking";
+                throw Networks.error(Response.Status.INTERNAL_SERVER_ERROR, message, details);
             }
 
             this.connect(network, cid, uri.toString());
         }
         catch (BWFLAException error) {
-            LOG.log(Level.WARNING, "Connecting component '" + cid + "' to network '" + nid + "' failed!", error);
-            throw new ServerErrorException(Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(new ErrorInformation("Could not acquire group information.", error.getMessage()))
-                    .build());
+            final var message = "Connecting component '" + cid + "' to network '" + nid + "' failed!";
+            LOG.log(Level.WARNING, message, error);
+            throw Networks.error(Response.Status.INTERNAL_SERVER_ERROR, message, error.getMessage());
         }
     }
 
@@ -421,5 +411,13 @@ public class Networks {
 
         return (NetworkSession) session;
     }
+
+    public static ServerErrorException error(Response.Status status, String message, String details)
+    {
+        final var response = Response.status(status)
+                .entity(new ErrorInformation(message, details))
+                .build();
+
+        return new ServerErrorException(response);
     }
 }
