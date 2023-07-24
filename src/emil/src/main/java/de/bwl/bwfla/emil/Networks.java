@@ -177,7 +177,6 @@ public class Networks {
 //            }
 
             if(networkRequest.isTcpGateway() && networkRequest.getTcpGatewayConfig() != null) {
-                String nodeTcpId = null;
                 NetworkRequest.TcpGatewayConfig tcpGatewayConfig = networkRequest.getTcpGatewayConfig();
 
                 NodeTcpConfiguration nodeConfig = new NodeTcpConfiguration();
@@ -199,17 +198,14 @@ public class Networks {
 
                 final NodeTcpComponentRequest nodeComponentRequest = new NodeTcpComponentRequest();
                 nodeComponentRequest.setConfig(nodeConfig);
-                nodeTcpId = components.createComponent(nodeComponentRequest).getId();
-                session.components()
-                        .put(nodeTcpId, new SessionComponent(nodeTcpId));
 
-                Map<String, URI> controlUrls = ComponentClient.controlUrlsToMap(componentWsClient.getControlUrls(nodeTcpId));
-                String nodeTcpUrl = controlUrls.get("ws+ethernet+" + nodeConfig.getHwAddress()).toString();
-                networkSwitchWsClient.connect(switchId, nodeTcpUrl);
+                final var nodeTcpId = components.createComponent(nodeComponentRequest).getId();
+                final var controlUrls = this.getControlUrls(nodeTcpId);
+                final var nodeTcpUrl = controlUrls.get("ws+ethernet+" + nodeConfig.getHwAddress());
+                this.connect(session, nodeTcpId, nodeTcpUrl.toString());
 
-                String nodeInfoUrl = controlUrls.get("info").toString();
-                System.out.println(nodeInfoUrl);
-                networkResponse.addUrl("tcp", URI.create(nodeInfoUrl));
+                final var nodeInfoUrl = controlUrls.get("info");
+                networkResponse.addUrl("tcp", nodeInfoUrl);
             }
 
             // add all the other components
