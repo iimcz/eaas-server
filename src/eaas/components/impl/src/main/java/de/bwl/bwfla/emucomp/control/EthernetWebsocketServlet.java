@@ -20,7 +20,6 @@
 package de.bwl.bwfla.emucomp.control;
 
 import java.io.IOException;
-import java.nio.file.Paths;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -63,11 +62,12 @@ public class EthernetWebsocketServlet extends IPCWebsocketProxy{
                 Logger.getLogger("EthernetWebsocketServlet").log(Level.SEVERE, "NET_DEBUG connector not found " + componentId + " " + hwAddress);
                 session.close(new CloseReason(CloseReason.CloseCodes.GOING_AWAY, "component is gone"));
             }
+
             this.connector = (EthernetConnector) connector;
-            String id = UUID.randomUUID().toString();
-            this.connector.connect(id);
             this.componentId = componentId;
-            this.iosock = IpcSocket.connect("/tmp/" + id + ".sock", IpcSocket.Type.STREAM);
+
+            final var sockpath = this.connector.connect(UUID.randomUUID().toString());
+            this.iosock = IpcSocket.connect(sockpath, IpcSocket.Type.STREAM);
 
             // Start background thread for streaming from io-socket to client
             {

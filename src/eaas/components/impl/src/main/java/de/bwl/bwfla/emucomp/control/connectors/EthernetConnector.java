@@ -19,19 +19,15 @@
 
 package de.bwl.bwfla.emucomp.control.connectors;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
-import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.emucomp.api.EthernetAlreadyConnectedException;
 import de.bwl.bwfla.emucomp.components.emulators.EmulatorBean;
-import de.bwl.bwfla.emucomp.components.network.VdeSwitchBean;
 
 
 public class EthernetConnector implements IConnector {
@@ -42,6 +38,16 @@ public class EthernetConnector implements IConnector {
     private final String hwAddress;
     private final Path vdeSocket;
     private DeprecatedProcessRunner runner = null;
+
+    static {
+        final var workdir = Path.of("/tmp/eaas/vde/");
+        try {
+            Files.createDirectories(workdir);
+        }
+        catch (Exception error) {
+            throw new RuntimeException("Creating working directory for ethernet-connectors failed!", error);
+        }
+    }
     
     public static String getProtocolForHwaddress(final String hwAddress) {
         return EthernetConnector.PROTOCOL + "+" + hwAddress;
@@ -68,17 +74,20 @@ public class EthernetConnector implements IConnector {
         return getProtocolForHwaddress(this.hwAddress);
     }
 
-    public synchronized void connect(String id) throws EthernetAlreadyConnectedException {
+    public synchronized String connect(String id)
+            throws EthernetAlreadyConnectedException, BWFLAException
+    {
         log.info("Starting ethernet-connector for '" + hwAddress + "'...");
         if (this.runner != null)
             throw new EthernetAlreadyConnectedException();
+
+        final var sockpath = "/tmp/eaas/vde/" + id + ".sock";
 
         // Start a new VDE plug instance that connects to the emulator's switch
         this.runner = new DeprecatedProcessRunner();
         runner.setLogger(log);
         runner.setCommand("socat");
-        runner.addArguments("unix-listen:/tmp/" + id + ".sock");
-
+        runner.addArgument("unix-listen:" + sockpath);
 
         String socatExec = "exec ";
         if (emubean != null && emubean.isContainerModeEnabled()) {
@@ -92,7 +101,8 @@ public class EthernetConnector implements IConnector {
         if (!runner.start())
             throw new BWFLAException("Running emulator-side vde-plug failed!");
 
-        log.info("Started ethernet-connector for '" + hwAddress + "'");
+        log.info("Started ethernet-connector for '" + hwAddress + "' (" + sockpath + "')");
+        return sockpath;
     }
     
     public void close() {
