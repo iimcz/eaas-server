@@ -24,6 +24,8 @@ public class SessionComponent
 {
 	private final String id;
 	private final long ctime;
+	private volatile boolean released;
+	private volatile boolean removed;
 	private NetworkConnectionInfo netinfo;
 	private String customName = null;
 
@@ -32,6 +34,8 @@ public class SessionComponent
 	{
 		this.id = id;
 		this.ctime = System.nanoTime();
+		this.released = false;
+		this.removed = false;
 	}
 
 	public String id()
@@ -70,6 +74,26 @@ public class SessionComponent
 	public long getCreationTime()
 	{
 		return ctime;
+	}
+
+	public void markAsReleased()
+	{
+		this.released = true;
+	}
+
+	public boolean isReleased()
+	{
+		return released;
+	}
+
+	public void markAsRemoved()
+	{
+		this.removed = true;
+	}
+
+	public boolean isRemoved()
+	{
+		return removed;
 	}
 
 

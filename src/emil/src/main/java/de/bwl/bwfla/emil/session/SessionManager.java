@@ -212,7 +212,10 @@ public class SessionManager
 				// Release component's resources
 				final var cid = component.id();
 				try {
-					endpoint.releaseComponent(cid);
+					component.markAsRemoved();
+					if (!component.isReleased())
+						endpoint.releaseComponent(cid);
+
 					++numComponentsRemoved;
 				}
 				catch (Exception error) {

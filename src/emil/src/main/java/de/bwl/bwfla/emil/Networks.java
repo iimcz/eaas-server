@@ -349,6 +349,10 @@ public class Networks {
 
         final TaskStack.IRunnable cleanup = () -> {
             try {
+                // NOTE: this hook can only be called during component cleanup,
+                //       hence it's safe to mark the component as released here
+                component.markAsReleased();
+
                 this.remove(network, component);
             }
             catch (Exception error) {
@@ -391,7 +395,8 @@ public class Networks {
             LOG.log(Level.WARNING, "Disconnecting component '" + cid + "' from network '" + nid + "' failed!", error);
         }
 
-        sessions.remove(nid, cid);
+        if (!component.isRemoved())
+            sessions.remove(nid, cid);
 
         LOG.info("Removed component '" + cid + "' from network '" + nid + "'");
     }
