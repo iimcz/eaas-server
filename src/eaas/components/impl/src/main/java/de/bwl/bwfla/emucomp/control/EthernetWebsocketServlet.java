@@ -90,7 +90,15 @@ public class EthernetWebsocketServlet extends IPCWebsocketProxy{
     @Override
     protected void stop(Session session)
     {
-        connector.close();
+        if (connector != null) {
+            try {
+                connector.close();
+            }
+            catch (Throwable error) {
+                log.log(Level.WARNING, "Closing ethernet-connector for component '" + componentId + "' failed!", error);
+            }
+        }
+
         super.stop(session);
     }
 

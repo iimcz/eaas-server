@@ -96,9 +96,18 @@ public class EthernetConnector implements IConnector {
     }
     
     public void close() {
-        this.runner.stop();
-        this.runner.cleanup();
-        this.runner = null;
+        if (runner == null)
+            return;
+
+        try {
+            runner.stop();
+            runner.printStdOut();
+            runner.printStdErr();
+        }
+        finally {
+            runner.cleanup();
+            this.runner = null;
+        }
 
         log.info("Stopped ethernet-connector for '" + hwAddress + "'");
     }
