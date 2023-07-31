@@ -22,12 +22,12 @@ package de.bwl.bwfla.emucomp.control;
 import java.io.IOException;
 import java.util.UUID;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import javax.inject.Inject;
 import javax.websocket.*;
 import javax.websocket.server.PathParam;
 import javax.websocket.server.ServerEndpoint;
+import javax.ws.rs.NotFoundException;
 
 import de.bwl.bwfla.emucomp.NodeManager;
 import de.bwl.bwfla.emucomp.components.AbstractEaasComponent;
@@ -56,11 +56,9 @@ public class EthernetWebsocketServlet extends IPCWebsocketProxy{
             IConnector connector = component.getControlConnector(
                     EthernetConnector.getProtocolForHwaddress(hwAddress));
 
-            if (connector == null
-                    || !(connector instanceof EthernetConnector)) {
-
-                Logger.getLogger("EthernetWebsocketServlet").log(Level.SEVERE, "NET_DEBUG connector not found " + componentId + " " + hwAddress);
-                session.close(new CloseReason(CloseReason.CloseCodes.GOING_AWAY, "component is gone"));
+            if (!(connector instanceof EthernetConnector)) {
+                final var message = "Ethernet-connector for component '" + componentId + "' (" + hwAddress + ") not found!";
+                throw new NotFoundException(message);
             }
 
             this.connector = (EthernetConnector) connector;
