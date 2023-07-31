@@ -117,7 +117,7 @@ public class NodeTcpBean extends EaasComponentBean {
             throw new BWFLAException("Cannot start node process");
         vdeProcesses.add(runner);
 
-        this.addControlConnector(new EthernetConnector(hwAddress, this.getWorkingDir().resolve(switchName)));
+        this.addControlConnector(new EthernetConnector(hwAddress, this.getWorkingDir().resolve(switchName), LOG));
     }
 
     @Override

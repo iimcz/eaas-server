@@ -37,6 +37,7 @@ import de.bwl.bwfla.emucomp.components.network.VdeSwitchBean;
 public class EthernetConnector implements IConnector {
     public final static String PROTOCOL = "ws+ethernet";
 
+    private final Logger log;
     private final EmulatorBean emubean;
     private final String hwAddress;
     private final Path vdeSocket;
@@ -46,11 +47,12 @@ public class EthernetConnector implements IConnector {
         return EthernetConnector.PROTOCOL + "+" + hwAddress;
     }
 
-    public EthernetConnector(final String hwAddress, final Path vdeSocket) {
-        this(hwAddress, vdeSocket, null);
+    public EthernetConnector(final String hwAddress, final Path vdeSocket, Logger log) {
+        this(hwAddress, vdeSocket, log, null);
     }
 
-    public EthernetConnector(final String hwAddress, final Path vdeSocket, EmulatorBean emubean) {
+    public EthernetConnector(final String hwAddress, final Path vdeSocket, Logger log, EmulatorBean emubean) {
+        this.log = log;
         this.emubean = emubean;
         this.hwAddress = hwAddress;
         this.vdeSocket = vdeSocket;
@@ -67,12 +69,13 @@ public class EthernetConnector implements IConnector {
     }
 
     public synchronized void connect(String id) throws EthernetAlreadyConnectedException {
+        log.info("Starting ethernet-connector for '" + hwAddress + "'...");
         if (this.runner != null)
             throw new EthernetAlreadyConnectedException();
 
         // Start a new VDE plug instance that connects to the emulator's switch
         this.runner = new DeprecatedProcessRunner();
-
+        runner.setLogger(log);
         runner.setCommand("socat");
         runner.addArguments("unix-listen:/tmp/" + id + ".sock");
 
@@ -86,25 +89,17 @@ public class EthernetConnector implements IConnector {
 
         runner.addEnvVariable("SOCATCMD", socatExec);
         runner.addArgument("exec:sh -c $SOCATCMD");
+        if (!runner.start())
+            throw new BWFLAException("Running emulator-side vde-plug failed!");
 
-        /*
-        if (emubean != null && emubean.isContainerModeEnabled()) {
-            // Run the process inside of the running emulator-container!
-            runner.addArguments("sudo", "runc", "exec");
-            runner.addArguments("--user", emubean.getContainerUserId() + ":" + emubean.getContainerGroupId());
-            runner.addArguments(emubean.getContainerId());
-        }
-
-        runner.addArguments("vde_plug", "-s", this.vdeSocket.toString());
-
-         */
-        runner.start();
+        log.info("Started ethernet-connector for '" + hwAddress + "'");
     }
     
     public void close() {
-        Logger.getLogger(VdeSwitchBean.class.getName()).log(Level.SEVERE,"NET_DEBUG: EthernetConnector Closed");
         this.runner.stop();
         this.runner.cleanup();
         this.runner = null;
+
+        log.info("Stopped ethernet-connector for '" + hwAddress + "'");
     }
 }

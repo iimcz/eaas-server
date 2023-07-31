@@ -2603,7 +2603,7 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 			vdeProcesses.add(process);
 		}
 
-		this.addControlConnector(new EthernetConnector(nic.getHwaddress(), vdeHubName, this));
+		this.addControlConnector(new EthernetConnector(nic.getHwaddress(), vdeHubName, LOG, this));
 		this.addNic(nic);
 	}
 

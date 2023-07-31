@@ -127,7 +127,7 @@ public class VdeSwitchBean extends NetworkSwitchBean {
 
     @Override
     public URI connect() {  // leaking the connector
-        IConnector connector = new EthernetConnector(NetworkUtils.getRandomHWAddress(), this.switchPath);
+        IConnector connector = new EthernetConnector(NetworkUtils.getRandomHWAddress(), this.switchPath, LOG);
         addControlConnector(connector);
         return connector.getControlPath(getComponentResource());
     }

@@ -125,7 +125,7 @@ public class VdeSlirpBean extends EaasComponentBean {
             vdeProcesses.add(runner);
             
             
-            this.addControlConnector(new EthernetConnector(config.getHwAddress(), this.getWorkingDir().resolve(switchName)));
+            this.addControlConnector(new EthernetConnector(config.getHwAddress(), this.getWorkingDir().resolve(switchName), LOG));
         } catch (ClassCastException e) {
             throw new BWFLAException("VdeSlirpBean can only be configured from VdeSlirpNode metadata.", e);
         }
