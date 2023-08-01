@@ -17,7 +17,6 @@ public abstract class IPCWebsocketProxy {
     final static Logger log = Logger.getLogger(IPCWebsocketProxy.class.getName());
     protected IpcSocket iosock;
     protected OutputStreamer streamer;
-    protected PingSender pingSender;
     protected String componentId;
 
 
@@ -68,15 +67,6 @@ public abstract class IPCWebsocketProxy {
             }
         }
 
-        if (pingSender != null && pingSender.isRunning()) {
-            try {
-                pingSender.stop();
-            }
-            catch (Exception error) {
-                log.log(Level.WARNING, "Stopping ping-sender failed!", error);
-            }
-        }
-
         if (iosock != null) {
             try {
                 iosock.close();
@@ -118,67 +108,6 @@ public abstract class IPCWebsocketProxy {
         this.stop(session);
     }
 
-    protected class PingSender implements Runnable
-    {
-        private final Thread worker;
-        private final Session session;
-        private boolean running;
-
-        public PingSender(Session session, ManagedThreadFactory wfactory)
-        {
-            this.worker = wfactory.newThread(this);
-            this.session = session;
-            this.running = false;
-        }
-
-        public boolean isRunning()
-        {
-            return running;
-        }
-
-        public void start()
-        {
-            running = true;
-            worker.start();
-        }
-
-        public void stop() throws InterruptedException
-        {
-            running = false;
-            worker.interrupt();
-            worker.join();
-        }
-
-        @Override
-        public void run()
-        {
-            try {
-                final ByteBuffer buffer = ByteBuffer.allocate(16);
-                while (running) {
-                    if (!session.isOpen())
-                        break;
-
-                    // not sure what the payload should be
-                    session.getBasicRemote()
-                            .sendPing(buffer);
-
-                    Thread.sleep(5 * 60 * 1000);
-                }
-
-                final String message = "Server requested to closed connection!";
-                session.close(new CloseReason(CloseReason.CloseCodes.NORMAL_CLOSURE, message));
-            }
-            catch (Exception error) {
-                if (error instanceof InterruptedException)
-                    log.warning("Sending pings to client has been interrupted! Terminating sender...");
-                else log.log(Level.WARNING, "Sending pings to client failed!", error);
-                try {
-                    session.close(new CloseReason(CloseReason.CloseCodes.UNEXPECTED_CONDITION, error.getMessage()));
-                } catch (IOException ignore) { }
-            }
-        }
-    }
-
     protected class OutputStreamer implements Runnable
     {
         private final Thread worker;
@@ -214,9 +143,22 @@ public abstract class IPCWebsocketProxy {
         {
             try {
                 final ByteBuffer buffer = ByteBuffer.allocate(4 * 1024);
+                final ByteBuffer ping = ByteBuffer.allocate(1);
+
+                long nextPingTimestamp = 0L;
+
                 while (running) {
                     if (!session.isOpen())
                         break;
+
+                    final var curtime = System.currentTimeMillis();
+                    if (curtime > nextPingTimestamp) {
+                        // not sure what the payload should be
+                        session.getBasicRemote()
+                                .sendPing(ping);
+
+                        nextPingTimestamp = curtime + (60L * 1000L);
+                    }
 
                     if (!iosock.receive(buffer, 1000))
                         continue;

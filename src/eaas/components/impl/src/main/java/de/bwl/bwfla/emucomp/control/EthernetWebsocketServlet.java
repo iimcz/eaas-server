@@ -71,9 +71,6 @@ public class EthernetWebsocketServlet extends IPCWebsocketProxy{
             {
                 this.streamer = new OutputStreamer(session, nodeManager.getWorkerThreadFactory());
                 streamer.start();
-
-                this.pingSender = new PingSender(session, nodeManager.getWorkerThreadFactory());
-                pingSender.start();
             }
         }
         catch (Throwable error) {
