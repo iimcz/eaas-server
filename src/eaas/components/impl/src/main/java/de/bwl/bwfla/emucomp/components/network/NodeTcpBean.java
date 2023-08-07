@@ -16,6 +16,8 @@ import javax.enterprise.inject.spi.CDI;
 import javax.inject.Inject;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.logging.Level;
+
 
 public class NodeTcpBean extends EaasComponentBean {
 
@@ -36,10 +38,13 @@ public class NodeTcpBean extends EaasComponentBean {
 
     @Override
     public void destroy() {
+        LOG.info("Stopping node-tcp instance...");
         while (!vdeProcesses.isEmpty()) {
             final var process = vdeProcesses.remove(vdeProcesses.size() - 1);
             try {
                 process.stop();
+                process.printStdOut();
+                process.printStdErr();
             }
             catch (Throwable error) {
                 LOG.log(Level.WARNING, "Stopping subprocess failed!", error);
@@ -51,10 +56,14 @@ public class NodeTcpBean extends EaasComponentBean {
 
         tcpPorts.release();
         super.destroy();
+
+        LOG.info("Stopped node-tcp instance");
     }
 
     @Override
     public void initialize(ComponentConfiguration config) throws BWFLAException {
+
+        LOG.info("Initializing node-tcp instance...");
 
         NodeTcpConfiguration nodeConfig = (NodeTcpConfiguration) config;
 
@@ -66,9 +75,8 @@ public class NodeTcpBean extends EaasComponentBean {
         int extPort;
         try {
              extPort = tcpPorts.get();
-             System.out.println("connection on port: " + extPort);
+             LOG.info("Connection on port: " + extPort);
         } catch (IOException e) {
-            e.printStackTrace();
             throw new BWFLAException(e);
         }
 
@@ -76,7 +84,8 @@ public class NodeTcpBean extends EaasComponentBean {
         process.addArgument("-hub");
         process.addArgument("-s");
         process.addArgument(vdeSocketsPath.toString());
-        if(!process.start())
+        process.setLogger(LOG);
+        if (!process.start(false))
             throw new BWFLAException("Cannot create vde_switch hub for VdeSlirpBean");
         vdeProcesses.add(process);
 
@@ -122,11 +131,14 @@ public class NodeTcpBean extends EaasComponentBean {
             this.addControlConnector(new InfoDummyConnector(info));
         }
 
-        if (!runner.start())
+        runner.setLogger(LOG);
+        if (!runner.start(false))
             throw new BWFLAException("Cannot start node process");
         vdeProcesses.add(runner);
 
         this.addControlConnector(new EthernetConnector(hwAddress, vdeSocketsPath, LOG));
+
+        LOG.info("Initialized node-tcp instance");
     }
 
     @Override
