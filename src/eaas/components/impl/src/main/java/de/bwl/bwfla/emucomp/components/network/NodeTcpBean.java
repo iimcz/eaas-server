@@ -36,11 +36,20 @@ public class NodeTcpBean extends EaasComponentBean {
 
     @Override
     public void destroy() {
-        tcpPorts.release();
-        for (DeprecatedProcessRunner process : this.vdeProcesses) {
-            process.stop();
-            process.cleanup();
+        while (!vdeProcesses.isEmpty()) {
+            final var process = vdeProcesses.remove(vdeProcesses.size() - 1);
+            try {
+                process.stop();
+            }
+            catch (Throwable error) {
+                LOG.log(Level.WARNING, "Stopping subprocess failed!", error);
+            }
+            finally {
+                process.cleanup();
+            }
         }
+
+        tcpPorts.release();
         super.destroy();
     }
 
