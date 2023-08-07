@@ -49,10 +49,10 @@ public class NodeTcpBean extends EaasComponentBean {
 
         NodeTcpConfiguration nodeConfig = (NodeTcpConfiguration) config;
 
-
-
         String hwAddress = nodeConfig.getHwAddress();
         String switchName = "nic_" + hwAddress;
+        final var vdeSocketsPath = this.getWorkingDir()
+                .resolve(switchName);
 
         int extPort;
         try {
@@ -66,7 +66,7 @@ public class NodeTcpBean extends EaasComponentBean {
         DeprecatedProcessRunner process = new DeprecatedProcessRunner("vde_switch");
         process.addArgument("-hub");
         process.addArgument("-s");
-        process.addArgument(this.getWorkingDir().resolve(switchName).toString());
+        process.addArgument(vdeSocketsPath.toString());
         if(!process.start())
             throw new BWFLAException("Cannot create vde_switch hub for VdeSlirpBean");
         vdeProcesses.add(process);
@@ -77,7 +77,7 @@ public class NodeTcpBean extends EaasComponentBean {
         {
             // Usage: ./eaas-proxy "" /tmp/switch1 "" 10.0.0.1/24 dhcpd
             runner.addArgument("");
-            runner.addArgument(this.getWorkingDir().resolve(switchName).toString());
+            runner.addArgument(vdeSocketsPath.toString());
             runner.addArgument("");
 
             runner.addArgument(nodeConfig.getDhcpNetworkAddress() + "/" + nodeConfig.getDhcpNetworkMask());
@@ -91,7 +91,7 @@ public class NodeTcpBean extends EaasComponentBean {
             // arg5 privateDestIp (internal server)
             // arg6 privateDestIpPort
             runner.addArgument(extPort + "");
-            runner.addArgument(this.getWorkingDir().resolve(switchName).toString());
+            runner.addArgument(vdeSocketsPath.toString());
             runner.addArgument(NetworkUtils.getRandomHWAddress());
             runner.addArgument("dhcp");
             // runner.addArgument(nodeConfig.getPrivateNetIp() + "/" + nodeConfig.getPrivateNetMask());
@@ -117,7 +117,7 @@ public class NodeTcpBean extends EaasComponentBean {
             throw new BWFLAException("Cannot start node process");
         vdeProcesses.add(runner);
 
-        this.addControlConnector(new EthernetConnector(hwAddress, this.getWorkingDir().resolve(switchName), LOG));
+        this.addControlConnector(new EthernetConnector(hwAddress, vdeSocketsPath, LOG));
     }
 
     @Override
