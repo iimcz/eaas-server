@@ -22,11 +22,9 @@ package de.bwl.bwfla.emucomp.components.network;
 import java.util.ArrayList;
 
 import javax.enterprise.inject.spi.CDI;
-import javax.inject.Inject;
 
 import de.bwl.bwfla.emucomp.api.ComponentConfiguration;
 import org.apache.commons.net.util.SubnetUtils;
-import org.apache.tamaya.inject.api.Config;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
@@ -35,14 +33,9 @@ import de.bwl.bwfla.emucomp.components.EaasComponentBean;
 import de.bwl.bwfla.emucomp.control.connectors.EthernetConnector;
 
 public class VdeSlirpBean extends EaasComponentBean {
-    @Inject
-    @Config("components.binary.vdeslirp")
-    protected String vdeslirp_bin;
-    
     protected DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
     protected ArrayList<DeprecatedProcessRunner> vdeProcesses = new ArrayList<DeprecatedProcessRunner>();
 
-    protected String slirpCommand;
     protected VdeSlirpConfiguration config;
     
     @Override
@@ -53,18 +46,20 @@ public class VdeSlirpBean extends EaasComponentBean {
             // create a vde_switch in hub mode
             // the switch can later be identified using the NIC's MAC address
             String switchName = "nic_" + config.getHwAddress();
+            final var vdeSocketsPath = this.getWorkingDir()
+                    .resolve(switchName);
 
             DeprecatedProcessRunner process = new DeprecatedProcessRunner("vde_switch");
             process.addArgument("-hub");
             process.addArgument("-s");
-            process.addArgument(this.getWorkingDir().resolve(switchName).toString());
+            process.addArgument(vdeSocketsPath.toString());
             if(!process.start())
                 throw new BWFLAException("Cannot create vde_switch hub for VdeSlirpBean");
             vdeProcesses.add(process);
 
             runner.setCommand("/libexec/vde/vde_plug");
             runner.addEnvVariable("LD_LIBRARY_PATH", "/libexec/vde");
-            runner.addArguments("-s", this.getWorkingDir().resolve(switchName).toString());
+            runner.addArguments("-s", vdeSocketsPath.toString());
             runner.addArgument("--");
 
             runner.addArguments("/libexec/vde/slirp-helper", "--fd", "3");
@@ -124,8 +119,7 @@ public class VdeSlirpBean extends EaasComponentBean {
                 throw new BWFLAException("Cannot start vdeslirp process");
             vdeProcesses.add(runner);
             
-            
-            this.addControlConnector(new EthernetConnector(config.getHwAddress(), this.getWorkingDir().resolve(switchName), LOG));
+            this.addControlConnector(new EthernetConnector(config.getHwAddress(), vdeSocketsPath, LOG));
         } catch (ClassCastException e) {
             throw new BWFLAException("VdeSlirpBean can only be configured from VdeSlirpNode metadata.", e);
         }
@@ -153,9 +147,4 @@ public class VdeSlirpBean extends EaasComponentBean {
     public String getComponentType() throws BWFLAException {
         return "slirp";
     }
-    
-//    @Override
-//    public String getComponentType() {
-//        return "vdeslirp";
-//    }
 }
