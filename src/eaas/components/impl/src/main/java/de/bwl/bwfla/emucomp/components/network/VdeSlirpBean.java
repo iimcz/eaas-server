@@ -20,6 +20,7 @@
 package de.bwl.bwfla.emucomp.components.network;
 
 import java.util.ArrayList;
+import java.util.logging.Level;
 
 import javax.enterprise.inject.spi.CDI;
 
@@ -40,6 +41,8 @@ public class VdeSlirpBean extends EaasComponentBean {
     
     @Override
     public void initialize(ComponentConfiguration compConfig) throws BWFLAException {
+        LOG.info("Initializing vde-slirp instance...");
+
         try {
             config = (VdeSlirpConfiguration) compConfig;
 
@@ -53,7 +56,8 @@ public class VdeSlirpBean extends EaasComponentBean {
             process.addArgument("-hub");
             process.addArgument("-s");
             process.addArgument(vdeSocketsPath.toString());
-            if(!process.start())
+            process.setLogger(LOG);
+            if (!process.start(false))
                 throw new BWFLAException("Cannot create vde_switch hub for VdeSlirpBean");
             vdeProcesses.add(process);
 
@@ -61,7 +65,6 @@ public class VdeSlirpBean extends EaasComponentBean {
             runner.addEnvVariable("LD_LIBRARY_PATH", "/libexec/vde");
             runner.addArguments("-s", vdeSocketsPath.toString());
             runner.addArgument("--");
-
             runner.addArguments("/libexec/vde/slirp-helper", "--fd", "3");
 
             String network;
@@ -84,9 +87,7 @@ public class VdeSlirpBean extends EaasComponentBean {
             }
 
             if(!network.endsWith(".0"))
-                throw new BWFLAException("invalid network: " + network + " " + ((VdeSlirpConfiguration) compConfig).getNetwork() + " " + ((VdeSlirpConfiguration) compConfig).getNetmask());
-
-            LOG.severe("using " +  network + " " + mask);
+                throw new BWFLAException("Invalid network: " + network + " (" + mask + ")");
 
             runner.addArgument("--disable-ipv6");
             runner.addArguments("--net", network);
@@ -114,8 +115,9 @@ public class VdeSlirpBean extends EaasComponentBean {
                 // we have to make sure to set a DNS, as the user might choose a network outside of 10.0.2.x (default)
                 runner.addArguments("--dns", "1.0.0.1");
             }
-            
-            if (!runner.start())
+
+            runner.setLogger(LOG);
+            if (!runner.start(false))
                 throw new BWFLAException("Cannot start vdeslirp process");
             vdeProcesses.add(runner);
             
@@ -123,14 +125,19 @@ public class VdeSlirpBean extends EaasComponentBean {
         } catch (ClassCastException e) {
             throw new BWFLAException("VdeSlirpBean can only be configured from VdeSlirpNode metadata.", e);
         }
+
+        LOG.info("Initialized vde-slirp instance");
     }
     
     @Override
     public void destroy() {
+        LOG.info("Stopping vde-slirp instance...");
         while (!vdeProcesses.isEmpty()) {
             final var process = vdeProcesses.remove(vdeProcesses.size() - 1);
             try {
                 process.stop();
+                process.printStdOut();
+                process.printStdErr();
             }
             catch (Throwable error) {
                 LOG.log(Level.WARNING, "Stopping subprocess failed!", error);
@@ -141,6 +148,8 @@ public class VdeSlirpBean extends EaasComponentBean {
         }
 
         super.destroy();
+
+        LOG.info("Stopped vde-slirp instance");
     }
 
 
