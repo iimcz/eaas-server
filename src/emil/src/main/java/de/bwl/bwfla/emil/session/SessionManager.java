@@ -174,8 +174,9 @@ public class SessionManager
 		log.info("Removing session '" + id + "'...");
 		session.onTimeout(endpoint, log);
 
-		final Collection<String> components = session.components()
-				.keySet();
+		final var components = session.components()
+				.keySet()
+				.toArray(new String[0]);
 
 		this.remove(id, components);
 	}
