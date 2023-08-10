@@ -74,6 +74,9 @@ public class NetworkRequest extends JaxbType {
         @XmlElement(required = false, defaultValue = "auto")
         private String hwAddress = "auto";
 
+        @XmlElement
+        private boolean ephemeral = true;
+
 
         public String getComponentId() {
             return componentId;
@@ -122,6 +125,14 @@ public class NetworkRequest extends JaxbType {
 
         public void setFqdn(String fqdn) {
             this.fqdn = fqdn;
+        }
+
+        public boolean isEphemeral() {
+            return ephemeral;
+        }
+
+        public void setEphemeralMark(boolean ephemeral) {
+            this.ephemeral = ephemeral;
         }
     }
 

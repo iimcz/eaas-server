@@ -159,6 +159,7 @@ public class Session extends JaxbType
 
 		final Optional<Long> numfailed = components.values()
 				.stream()
+				.filter((sc) -> !sc.isEphemeral())
 				.map(checker)
 				.reduce(Long::sum);
 

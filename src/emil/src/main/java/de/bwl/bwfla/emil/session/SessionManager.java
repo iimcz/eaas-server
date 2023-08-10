@@ -214,7 +214,7 @@ public class SessionManager
 				final var cid = component.id();
 				try {
 					component.markAsRemoved();
-					if (!component.isReleased())
+					if (!component.isReleased() && !component.isEphemeral())
 						endpoint.releaseComponent(cid);
 
 					++numComponentsRemoved;

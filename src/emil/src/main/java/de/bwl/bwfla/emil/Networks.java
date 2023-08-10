@@ -157,7 +157,7 @@ public class Networks {
                 final var slirpUrl = this.getControlUrls(slirpId)
                         .get("ws+ethernet+" + slirpMac);
 
-                this.connect(session, slirpId, slirpUrl.toString());
+                this.connect(session, slirpId, slirpUrl.toString(), false);
             }
 
 
@@ -203,7 +203,7 @@ public class Networks {
                 final var nodeTcpId = components.createComponent(nodeComponentRequest).getId();
                 final var controlUrls = this.getControlUrls(nodeTcpId);
                 final var nodeTcpUrl = controlUrls.get("ws+ethernet+" + nodeConfig.getHwAddress());
-                this.connect(session, nodeTcpId, nodeTcpUrl.toString());
+                this.connect(session, nodeTcpId, nodeTcpUrl.toString(), false);
 
                 final var nodeInfoUrl = controlUrls.get("info");
                 networkResponse.addUrl("tcp", nodeInfoUrl);
@@ -237,6 +237,7 @@ public class Networks {
         this.connect(network, component);
     }
 
+    @Deprecated
     @POST
     @Secured(roles = {Role.PUBLIC})
     @Consumes(MediaType.APPLICATION_JSON)
@@ -325,7 +326,7 @@ public class Networks {
                 throw Networks.error(Response.Status.INTERNAL_SERVER_ERROR, message, details);
             }
 
-            this.connect(network, cid, uri.toString());
+            this.connect(network, cid, uri.toString(), cspec.isEphemeral());
         }
         catch (BWFLAException error) {
             final var message = "Connecting component '" + cid + "' to network '" + nid + "' failed!";
@@ -334,13 +335,17 @@ public class Networks {
         }
     }
 
-    private SessionComponent connect(NetworkSession network, String cid, String ethurl) throws BWFLAException
+    private SessionComponent connect(NetworkSession network, String cid, String ethurl, boolean ephemeral)
+            throws BWFLAException
     {
         networkSwitchWsClient.connect(network.getSwitchId(), ethurl);
 
         final var component = new SessionComponent(cid);
         component.getNetworkConnectionInfo()
                 .setEthernetUrl(ethurl);
+
+        if (ephemeral)
+            component.markAsEphemeral();
 
         network.components()
                 .put(cid, component);
@@ -362,7 +367,9 @@ public class Networks {
         };
 
         components.registerCleanupTask(cid, "network-disconnect/" + nid, cleanup);
-        LOG.info("Connected component '" + cid + "' to network '" + nid + "'");
+
+        final var kind = (ephemeral) ? "ephemeral" : "background";
+        LOG.info("Connected " + kind + " component '" + cid + "' to network '" + nid + "'");
 
         return component;
     }

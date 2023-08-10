@@ -26,6 +26,7 @@ public class SessionComponent
 	private final long ctime;
 	private volatile boolean released;
 	private volatile boolean removed;
+	private boolean ephemeral;
 	private NetworkConnectionInfo netinfo;
 	private String customName = null;
 
@@ -36,6 +37,7 @@ public class SessionComponent
 		this.ctime = System.nanoTime();
 		this.released = false;
 		this.removed = false;
+		this.ephemeral = false;
 	}
 
 	public String id()
@@ -96,6 +98,15 @@ public class SessionComponent
 		return removed;
 	}
 
+	public void markAsEphemeral()
+	{
+		this.ephemeral = true;
+	}
+
+	public boolean isEphemeral()
+	{
+		return ephemeral;
+	}
 
 	public static class NetworkConnectionInfo
 	{
