@@ -20,8 +20,7 @@
 package de.bwl.bwfla.emil;
 
 import java.net.URI;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -61,7 +60,6 @@ import de.bwl.bwfla.emil.session.SessionComponent;
 import de.bwl.bwfla.emil.session.SessionManager;
 import de.bwl.bwfla.emucomp.api.NodeTcpConfiguration;
 import org.apache.tamaya.ConfigurationProvider;
-import org.apache.tamaya.inject.api.Config;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.services.rest.ErrorInformation;
@@ -80,10 +78,6 @@ public class Networks {
 
     @Inject
     private Components components = null;
-
-    @Inject
-    @Config(value = "emil.retain_session")
-    private String retain_session;
 
     private Component componentWsClient = null;
     private NetworkSwitch networkSwitchWsClient = null;
@@ -130,11 +124,7 @@ public class Networks {
             session.components()
                     .put(switchId, new SessionComponent(switchId));
 
-            DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-            
             sessions.register(session);
-            sessions.setLifetime(session.id(), Long.parseLong(retain_session), TimeUnit.MINUTES,
-                    "autodetached session @ " + dateFormat.format(new Date()));
 
             networkResponse = new NetworkResponse(session.id());
 
@@ -214,7 +204,15 @@ public class Networks {
                 this.connect(session, component);
             }
 
-            LOG.info("Created network '" + session.id() + "'");
+            var msgdetails = "";
+            if (networkRequest.getLifetime() != null) {
+                final var instant = Instant.now();
+                final var lifetime = networkRequest.getLifetime();
+                sessions.setLifetime(session.id(), lifetime.toMillis(), TimeUnit.MILLISECONDS, "Auto-detached network @ " + instant);
+                msgdetails += ", auto-detached for " + lifetime;
+            }
+
+            LOG.info("Created network '" + session.id() + "'" + msgdetails);
             return Response.status(Response.Status.CREATED)
                     .entity(networkResponse)
                     .build();
