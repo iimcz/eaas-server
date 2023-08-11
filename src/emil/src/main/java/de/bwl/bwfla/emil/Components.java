@@ -2040,9 +2040,9 @@ public class Components {
                             .build();
 
                     esink.send(event);
-
-                    LOG.info("Session '" + session.getId() + "' expired after " + notification.getDuration());
                 }
+
+                LOG.info("Session '" + session.getId() + "' expired after " + duration + " msec(s)");
 
                 // Since scheduler tasks should complete quickly and session.release()
                 // can take longer, submit a new task to an unscheduled executor for it.
