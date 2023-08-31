@@ -1625,7 +1625,13 @@ public class Components {
     @DELETE
     @Secured(roles={Role.PUBLIC})
     @Path("/{componentId}")
-    public void releaseComponent(@PathParam("componentId") String componentId) {
+    public CompletionStage<Void> releaseComponentAsync(@PathParam("componentId") String componentId)
+    {
+        return CompletableFuture.runAsync(() -> this.releaseComponent(componentId), executor);
+    }
+
+    public void releaseComponent(String componentId)
+    {
         ComponentSession session = sessions.get(componentId);
         if (session == null) {
             final Response response = Response.status(Response.Status.NOT_FOUND)
@@ -1777,6 +1783,11 @@ public class Components {
             if (tasks.execute())
                 LOG.info("Component '" + id + "' released");
             else LOG.log(Level.WARNING, "Releasing component '" + id + "' failed!");
+        }
+
+        public boolean isReleased()
+        {
+            return released.get();
         }
 
         public String getId()
@@ -2004,6 +2015,9 @@ public class Components {
         @Override
         public void run()
         {
+            if (session.isReleased())
+                return;
+
             final long curts = Components.timestamp();
             final long prevts = session.getKeepaliveTimestamp();
             final long duration = curts - session.getStartTimestamp();
