@@ -22,11 +22,16 @@ package de.bwl.bwfla.emil;
 import java.net.URI;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.Resource;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.json.Json;
@@ -85,6 +90,9 @@ public class Networks {
     @AuthenticatedUser
     private UserContext authenticatedUser;
 
+    @Resource(lookup = "java:jboss/ee/concurrency/executor/io")
+    private ExecutorService executor;
+
     private Component componentWsClient = null;
     private NetworkSwitch networkSwitchWsClient = null;
 
@@ -111,8 +119,10 @@ public class Networks {
     @Consumes({ MediaType.APPLICATION_JSON })
     @Produces(MediaType.APPLICATION_JSON)
     @TypeHint(NetworkResponse.class)
-    public Response createNetwork(NetworkRequest networkRequest) {
-        return this.createNetwork(networkRequest, authenticatedUser);
+    public CompletionStage<Response> createNetworkAsync(NetworkRequest networkRequest) {
+        final var userctx = (authenticatedUser != null) ? authenticatedUser.clone() : null;
+        final Supplier<Response> handler = () -> this.createNetwork(networkRequest, userctx);
+        return CompletableFuture.supplyAsync(handler, executor);
     }
 
     public Response createNetwork(NetworkRequest networkRequest, UserContext userctx) {
