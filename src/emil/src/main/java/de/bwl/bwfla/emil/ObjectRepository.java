@@ -506,20 +506,27 @@ public class ObjectRepository extends EmilRest
 		}
 	}
 
+	public String registerUserArchive(UserContext userctx) throws BWFLAException
+	{
+		if (!userArchiveEnabled || userctx == null || !userctx.isAvailable())
+			return null;
+
+		final var archiveId = USER_ARCHIVE_PREFIX + userctx.getUserId();
+		if (!objArchives.contains(archiveId)) {
+			LOG.info("Registering private object-archive for user: " + userctx.getUserId());
+			objHelper.registerUserArchive(archiveId);
+			objArchives = new HashSet<>(objHelper.getArchives());
+		}
+
+		return archiveId;
+	}
+
 
 	// ========== Internal Helpers ==============================
 
 	private String manageUserCtx(String archiveId) throws BWFLAException
 	{
-		if (userctx.isAvailable() && userctx.getUserId() != null && userArchiveEnabled) {
-			LOG.info("Using user context: " + userctx.getUserId());
-			archiveId = USER_ARCHIVE_PREFIX + userctx.getUserId();
-			if (!objArchives.contains(archiveId)) {
-				objHelper.registerUserArchive(archiveId);
-				objArchives = new HashSet<>(objHelper.getArchives());
-			}
-		}
-
-		return archiveId;
+		final var userArchiveId = this.registerUserArchive(userctx);
+		return (userArchiveId != null) ? userArchiveId : archiveId;
 	}
 }
