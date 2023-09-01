@@ -35,6 +35,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -365,12 +366,18 @@ public class Components {
     @Secured(roles={Role.PUBLIC})
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public ComponentResponse createComponent(ComponentRequest request, @Context final HttpServletResponse response)
+    public CompletionStage<Response> createComponentAsync(ComponentRequest request)
     {
-        final ComponentResponse result = this.createComponent(request, authenticatedUser);
-        response.setStatus(Response.Status.CREATED.getStatusCode());
-        response.addHeader("Location", result.getId());
-        return result;
+        final var userctx = this.getUserContext();
+        final Supplier<Response> handler = () -> {
+            final ComponentResponse result = this.createComponent(request, userctx);
+            return Response.status(Response.Status.CREATED)
+                    .header("Location", result.getId())
+                    .entity(result)
+                    .build();
+        };
+
+        return CompletableFuture.supplyAsync(handler, executor);
     }
 
     protected ComponentResponse createSwitchComponent(SwitchComponentRequest desc, TaskStack cleanups, List<EventObserver> observer)
