@@ -47,8 +47,15 @@ public class BindingsManager
 
 	private final Map<String, Binding> bindings;
 	private final Map<String, String> paths;
-	private final String objectArchiveAddress;
 	private final ImageMounter imageMounter;
+
+	private static final ObjectArchiveHelper objectArchiveHelper;
+	static {
+		final var objectArchiveAddress = ConfigurationProvider.getConfiguration()
+				.get("ws.objectarchive");
+
+		objectArchiveHelper = new ObjectArchiveHelper(objectArchiveAddress);
+	}
 
 	public enum EntryType
 	{
@@ -77,7 +84,6 @@ public class BindingsManager
 		this.bindings = new HashMap<String, Binding>();
 		this.paths = new LinkedHashMap<String, String>();
 		this.log = log;
-		this.objectArchiveAddress = ConfigurationProvider.getConfiguration().get("ws.objectarchive");
 		this.imageMounter = new ImageMounter(log);
 	}
 
@@ -120,8 +126,7 @@ public class BindingsManager
 			// If the resource is an ArchiveBinding, query the archive
 			// and add all entries from the file collection
 			final ObjectArchiveBinding object = (ObjectArchiveBinding) resource;
-			final ObjectArchiveHelper helper = new ObjectArchiveHelper(this.objectArchiveAddress);
-			final FileCollection fc = helper.getObjectReference(object.getArchive(), object.getId());
+			final FileCollection fc = objectArchiveHelper.getObjectReference(object.getArchive(), object.getId());
 			if (fc == null || fc.id == null || fc.id.isEmpty())
 				throw new BWFLAException("Retrieving object meta data failed!");
 
