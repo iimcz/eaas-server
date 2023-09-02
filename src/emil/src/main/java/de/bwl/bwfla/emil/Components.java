@@ -229,6 +229,12 @@ public class Components {
     /** ComponentProxy web-service */
     private Component component;
 
+    /** MachineProxy web-service */
+    private Machine machine;
+
+    /** ContainerProxy web-service */
+    private Container container;
+
     @Resource(lookup = "java:jboss/ee/concurrency/scheduler/default")
     protected ManagedScheduledExecutorService scheduler;
 
@@ -256,7 +262,9 @@ public class Components {
 
         try {
             this.eaas = eaasClient.getEaasWSPort(eaasGw);
-            this.component = componentClient.getPort(new URL(eaasGw + "/eaas/ComponentProxy?wsdl"), Component.class);
+            this.component = componentClient.getComponentPort(eaasGw);
+            this.machine = componentClient.getMachinePort(eaasGw);
+            this.container = componentClient.getContainerPort(eaasGw);
 
             this.imagebuilder = ImageBuilderClient.get().getImageBuilderPort(imageBuilderAddress);
             this.blobstore = blobStoreClient.getBlobStorePort(blobStoreWsAddress);
@@ -384,7 +392,7 @@ public class Components {
             throws WebApplicationException
     {
         try {
-            String switchId = eaasClient.getEaasWSPort(eaasGw).createSession(desc.getConfig().value(false));
+            String switchId = eaas.createSession(desc.getConfig().value(false));
             cleanups.push("release-component/" + switchId, () -> eaas.releaseSession(switchId));
             return new ComponentResponse(switchId);
         }
@@ -397,7 +405,7 @@ public class Components {
     protected ComponentResponse createNodeTcpComponent(NodeTcpComponentRequest desc, TaskStack cleanups, List<EventObserver> observer)
         throws WebApplicationException {
         try {
-            String nodeTcpId = eaasClient.getEaasWSPort(eaasGw).createSession(desc.getConfig().value(false));
+            String nodeTcpId = eaas.createSession(desc.getConfig().value(false));
             cleanups.push("release-component/" + nodeTcpId, () -> eaas.releaseSession(nodeTcpId));
             return new ComponentResponse(nodeTcpId);
         }
@@ -430,7 +438,7 @@ public class Components {
             }
             slirpConfig.setDhcpEnabled(desc.isDhcp());
 
-            String slirpId = eaasClient.getEaasWSPort(eaasGw).createSession(slirpConfig.value(false));
+            String slirpId = eaas.createSession(slirpConfig.value(false));
             cleanups.push("release-component/" + slirpId, () -> eaas.releaseSession(slirpId));
             return new ComponentResponse(slirpId);
         }
@@ -561,7 +569,6 @@ public class Components {
 
             cleanups.push("release-component/" + sessionId, () -> eaas.releaseSession(sessionId));
 
-            Container container = componentClient.getPort(new URL(eaasGw + "/eaas/ComponentProxy?wsdl"), Container.class);
             container.startContainer(sessionId);
             return new ComponentResponse(sessionId);
         }
@@ -844,7 +851,6 @@ public class Components {
 
             cleanups.push("release-component/" + sessionId, () -> eaas.releaseSession(sessionId));
 
-            Machine machine = componentClient.getPort(new URL(eaasGw + "/eaas/ComponentProxy?wsdl"), Machine.class);
             machine.start(sessionId);
 
             List<MachineComponentResponse.RemovableMedia> removableMedia = getRemovableMedialist((MachineConfiguration)chosenEnv);
@@ -1323,7 +1329,6 @@ public class Components {
     public InputStream screenshot(@PathParam("componentId") String componentId,
             @Context HttpServletResponse servletResponse) {
         try {
-            final Machine machine = componentClient.getMachinePort(eaasGw);
             String state = machine.getEmulatorState(componentId);
             if (!state.equalsIgnoreCase(EmuCompState.EMULATOR_RUNNING.value())) {
                 throw new NotFoundException();
@@ -1370,14 +1375,12 @@ public class Components {
                 throw new BWFLAException("session not found");
             final ComponentRequest request = session.getRequest();
             if (request instanceof MachineComponentRequest) {
-                final Machine machine = componentClient.getMachinePort(eaasGw);
                 String url = machine.stop(componentId);
                 ProcessResultUrl result = new ProcessResultUrl();
                 result.setUrl(url);
                 return result;
             }
             else if (request instanceof ContainerComponentRequest) {
-                final Container container = componentClient.getContainerPort(eaasGw);
                 container.stopContainer(componentId);
             }
         } catch (BWFLAException e) {
@@ -1395,7 +1398,6 @@ public class Components {
                                         @Context HttpServletResponse servletResponse)
     {
         try {
-            final Machine machine = componentClient.getMachinePort(eaasGw);
             List<de.bwl.bwfla.api.emucomp.PrintJob> pj = machine.getPrintJobs(componentId);
             for(de.bwl.bwfla.api.emucomp.PrintJob p : pj)
             {
@@ -1445,7 +1447,6 @@ public class Components {
     public List<String> printJobs(@PathParam("componentId") String componentId) {
         List<String> result = new ArrayList<>();
         try {
-            final Machine machine = componentClient.getMachinePort(eaasGw);
             List<de.bwl.bwfla.api.emucomp.PrintJob> pj = machine.getPrintJobs(componentId);
             for(de.bwl.bwfla.api.emucomp.PrintJob p : pj)
             {
@@ -1464,12 +1465,12 @@ public class Components {
     }
 
     public TaskStateResponse snapshotAsync(String componentId, SnapshotRequest request, UserContext userContext) throws Exception {
-         Snapshot snapshot = new Snapshot(componentClient.getMachinePort(eaasGw), emilEnvRepo, objects, userSessions);
+         Snapshot snapshot = new Snapshot(machine, emilEnvRepo, objects, userSessions);
          return new TaskStateResponse(taskManager.submitTask(new CreateSnapshotTask(snapshot, componentId, request, false, userContext)));
     }
 
     public SnapshotResponse snapshot(String componentId, SnapshotRequest request, UserContext userContext) throws Exception{
-        Snapshot snapshot = new Snapshot(componentClient.getMachinePort(eaasGw), emilEnvRepo, objects, userSessions);
+        Snapshot snapshot = new Snapshot(machine, emilEnvRepo, objects, userSessions);
         return snapshot.handleSnapshotRequest(componentId, request, false, userContext);
     }
 
@@ -1511,7 +1512,7 @@ public class Components {
     public SnapshotResponse snapshot(@PathParam("componentId") String componentId, SnapshotRequest request)
     {
         try {
-            Snapshot snapshot = new Snapshot(componentClient.getMachinePort(eaasGw), emilEnvRepo, objects, userSessions);
+            Snapshot snapshot = new Snapshot(machine, emilEnvRepo, objects, userSessions);
             return snapshot.handleSnapshotRequest(componentId, request, false, getUserContext());
         } catch (Exception e) {
             final BWFLAException error = (e instanceof BWFLAException) ?
@@ -1534,7 +1535,7 @@ public class Components {
     public TaskStateResponse checkpointAsync(@PathParam("componentId") String componentId, SnapshotRequest request)
     {
         try {
-            Snapshot snapshot = new Snapshot(componentClient.getMachinePort(eaasGw), emilEnvRepo, objects, userSessions);
+            Snapshot snapshot = new Snapshot(machine, emilEnvRepo, objects, userSessions);
             return new TaskStateResponse(taskManager.submitTask(new CreateSnapshotTask(snapshot, componentId, request, true, getUserContext())));
         } catch (Exception e) {
              final BWFLAException error = (e instanceof BWFLAException) ?
@@ -1557,7 +1558,7 @@ public class Components {
     public SnapshotResponse checkpoint(@PathParam("componentId") String componentId, SnapshotRequest request)
     {
         try {
-            Snapshot snapshot = new Snapshot(componentClient.getMachinePort(eaasGw), emilEnvRepo, objects, userSessions);
+            Snapshot snapshot = new Snapshot(machine, emilEnvRepo, objects, userSessions);
             return snapshot.handleSnapshotRequest(componentId, request, true, getUserContext());
         } catch (Exception e) {
             final BWFLAException error = (e instanceof BWFLAException) ?
@@ -1585,7 +1586,6 @@ public class Components {
 
         if(changeRequest.getLabel() == null || changeRequest.getLabel().isEmpty()){
             try {
-                final Machine machine = componentClient.getMachinePort(eaasGw);
                 machine.changeMedium(componentId, Integer.parseInt(changeRequest.getDriveId()), null);
             } catch (NumberFormatException | BWFLAException e) {
                 LOG.log(Level.SEVERE, e.getMessage(), e);
@@ -1614,7 +1614,6 @@ public class Components {
             return Emil.internalErrorResponse("could not resolve object label");
 
         try {
-            final Machine machine = componentClient.getMachinePort(eaasGw);
             machine.changeMedium(componentId, Integer.parseInt(changeRequest.getDriveId()),
                     "binding://" + changeRequest.getObjectId() + "/" + objurl);
         } catch (NumberFormatException | BWFLAException e) {
