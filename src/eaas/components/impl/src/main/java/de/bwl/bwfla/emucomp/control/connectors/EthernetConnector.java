@@ -25,7 +25,7 @@ import java.nio.file.Path;
 import java.util.logging.Logger;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.emucomp.api.EthernetAlreadyConnectedException;
 import de.bwl.bwfla.emucomp.components.emulators.EmulatorBean;
 
@@ -37,7 +37,7 @@ public class EthernetConnector implements IConnector {
     private final EmulatorBean emubean;
     private final String hwAddress;
     private final Path vdeSocket;
-    private DeprecatedProcessRunner runner = null;
+    private ProcessRunner runner = null;
 
     static {
         final var workdir = Path.of("/tmp/eaas/vde/");
@@ -84,7 +84,7 @@ public class EthernetConnector implements IConnector {
         final var sockpath = "/tmp/eaas/vde/" + id + ".sock";
 
         // Start a new VDE plug instance that connects to the emulator's switch
-        this.runner = new DeprecatedProcessRunner();
+        this.runner = new ProcessRunner();
         runner.setLogger(log);
         runner.setCommand("socat");
         runner.addArgument("unix-listen:" + sockpath);

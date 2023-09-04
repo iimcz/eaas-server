@@ -157,7 +157,7 @@ public class DiskDescription
 
 	public static DiskDescription read(Path image, Logger log) throws BWFLAException, IOException
 	{
-		final DeprecatedProcessRunner process = new DeprecatedProcessRunner("parted")
+		final ProcessRunner process = new ProcessRunner("parted")
 				.addArgument("--script")
 				.addArgument("--machine")
 				.addArgument(image.toString())
@@ -165,7 +165,7 @@ public class DiskDescription
 				.redirectStdErrToStdOut(false)
 				.setLogger(log);
 
-		final DeprecatedProcessRunner.Result result = process.executeWithResult()
+		final ProcessRunner.Result result = process.executeWithResult()
 				.orElseThrow(() -> new BWFLAException("Running parted failed!"));
 
 		if (!result.successful())

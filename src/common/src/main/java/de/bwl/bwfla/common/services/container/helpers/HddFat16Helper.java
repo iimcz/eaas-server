@@ -34,7 +34,7 @@ import org.apache.commons.io.FileUtils;
 
 import de.bwl.bwfla.common.services.container.types.Container;
 import de.bwl.bwfla.common.services.container.types.HddContainer;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.conf.CommonSingleton;
 
 
@@ -75,7 +75,7 @@ public class HddFat16Helper extends ContainerHelper
 		{
 			hddFile = File.createTempFile("/hdd_", ".img");
 
-			DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
+			ProcessRunner runner = new ProcessRunner();
 			runner.setCommand(hddCreateScript.getAbsolutePath());
 			runner.addArgument("6");
 			runner.addArgument(String.valueOf(sizeMB));
@@ -116,7 +116,7 @@ public class HddFat16Helper extends ContainerHelper
 		
 		// acquire hdd_io.sh script location
 		File hddIoScript = new File(CommonSingleton.helpersConf.hddFat16Io);
-		DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
+		ProcessRunner runner = new ProcessRunner();
 	
 		// iteratively inject files into hdd
 		for (File file: files)
@@ -151,7 +151,7 @@ public class HddFat16Helper extends ContainerHelper
 		{
 		    result = Files.createTempDirectory("").toFile();
 
-			DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
+			ProcessRunner runner = new ProcessRunner();
 			runner.setCommand(hddIoScript.getAbsolutePath());
 			runner.addArgument("e");
 			runner.addArgument(hddFile.getAbsolutePath());

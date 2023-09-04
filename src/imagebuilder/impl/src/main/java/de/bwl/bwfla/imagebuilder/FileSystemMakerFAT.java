@@ -20,7 +20,7 @@
 package de.bwl.bwfla.imagebuilder;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.emucomp.api.FileSystemType;
 
 import java.nio.file.Path;
@@ -55,7 +55,7 @@ public class FileSystemMakerFAT implements IFileSystemMaker
 		if(label != null && label.length() > 11)
 			label = label.substring(0, Math.min(label.length(), 11));
 
-		final DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		final ProcessRunner process = new ProcessRunner();
 		process.setLogger(log);
 		process.setCommand("mkfs.fat");
 		if(label != null)

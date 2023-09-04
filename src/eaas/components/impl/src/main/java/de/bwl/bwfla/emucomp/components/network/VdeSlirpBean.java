@@ -28,14 +28,14 @@ import de.bwl.bwfla.emucomp.api.ComponentConfiguration;
 import org.apache.commons.net.util.SubnetUtils;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.emucomp.api.VdeSlirpConfiguration;
 import de.bwl.bwfla.emucomp.components.EaasComponentBean;
 import de.bwl.bwfla.emucomp.control.connectors.EthernetConnector;
 
 public class VdeSlirpBean extends EaasComponentBean {
-    protected DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
-    protected ArrayList<DeprecatedProcessRunner> vdeProcesses = new ArrayList<DeprecatedProcessRunner>();
+    protected ProcessRunner runner = new ProcessRunner();
+    protected ArrayList<ProcessRunner> vdeProcesses = new ArrayList<ProcessRunner>();
 
     protected VdeSlirpConfiguration config;
     
@@ -52,7 +52,7 @@ public class VdeSlirpBean extends EaasComponentBean {
             final var vdeSocketsPath = this.getWorkingDir()
                     .resolve(switchName);
 
-            DeprecatedProcessRunner process = new DeprecatedProcessRunner("vde_switch");
+            ProcessRunner process = new ProcessRunner("vde_switch");
             process.addArgument("-hub");
             process.addArgument("-s");
             process.addArgument(vdeSocketsPath.toString());

@@ -21,7 +21,7 @@ package de.bwl.bwfla.emucomp.api;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.services.net.HttpUtils;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.common.utils.EaasFileUtils;
 import org.apache.tamaya.ConfigurationProvider;
 
@@ -125,7 +125,7 @@ public class ImageMounter implements AutoCloseable
 	{
 		this.check(image);
 
-		final DeprecatedProcessRunner process = ImageMounter.nbdMount(image, mountpoint, options, log);
+		final ProcessRunner process = ImageMounter.nbdMount(image, mountpoint, options, log);
 		final Mount mount = new Mount(image, mountpoint.toString(), mountpoint, process);
 		this.register(mount);
 		return mount;
@@ -143,7 +143,7 @@ public class ImageMounter implements AutoCloseable
 			throws BWFLAException, IllegalArgumentException
 	{
 		this.check(image.toString());
-		DeprecatedProcessRunner process = null;
+		ProcessRunner process = null;
 		try {
 			process = mountFileSystem(image, mountpoint, fstype, readonly, log);
 		}
@@ -291,14 +291,14 @@ public class ImageMounter implements AutoCloseable
 		private Path mountpoint;
 		private String source;
 		private String target;
-		private DeprecatedProcessRunner process;
+		private ProcessRunner process;
 
-		private Mount(String image, Path mountpoint, DeprecatedProcessRunner process)
+		private Mount(String image, Path mountpoint, ProcessRunner process)
 		{
 			this(image, image, mountpoint, process);
 		}
 
-		private Mount(String source, String target, Path mountpoint, DeprecatedProcessRunner process)
+		private Mount(String source, String target, Path mountpoint, ProcessRunner process)
 		{
 			this.mountpoint = mountpoint;
 			this.source = source;
@@ -385,7 +385,7 @@ public class ImageMounter implements AutoCloseable
 			return source;
 		}
 
-		public DeprecatedProcessRunner getProcess() {
+		public ProcessRunner getProcess() {
 			return process;
 		}
 	}
@@ -413,7 +413,7 @@ public class ImageMounter implements AutoCloseable
 
 	public static boolean sync(Path path, Logger log)
 	{
-		final DeprecatedProcessRunner process = new DeprecatedProcessRunner("sync")
+		final ProcessRunner process = new ProcessRunner("sync")
 				.setLogger(log);
 
 		final boolean synced = process.execute();
@@ -426,7 +426,7 @@ public class ImageMounter implements AutoCloseable
 	public static boolean delete(Path path, Logger log)
 	{
 		// Delete file or a directory recursively
-		final DeprecatedProcessRunner process = new DeprecatedProcessRunner("sudo")
+		final ProcessRunner process = new ProcessRunner("sudo")
 				.addArgument("--non-interactive")
 				.addArguments("rm", "-r", "-f")
 				.addArgument(path.toString())
@@ -478,7 +478,7 @@ public class ImageMounter implements AutoCloseable
 		mount.invalidate();
 	}
 
-	private boolean unmount(Path mountpoint, DeprecatedProcessRunner processRunner, boolean rmdirs)  {
+	private boolean unmount(Path mountpoint, ProcessRunner processRunner, boolean rmdirs)  {
 		if (mountpoint == null)
 			return true;
 
@@ -515,8 +515,8 @@ public class ImageMounter implements AutoCloseable
 		return unmounted;
 	}
 
-	private static DeprecatedProcessRunner nbdMount(String image, Path mountpoint, MountOptions options, Logger log) throws BWFLAException {
-		final var process = new DeprecatedProcessRunner("sudo")
+	private static ProcessRunner nbdMount(String image, Path mountpoint, MountOptions options, Logger log) throws BWFLAException {
+		final var process = new ProcessRunner("sudo")
 				.addArgument("/libexec/fuseqemu/fuseqemu")
 				.addArguments(options.getArgs());
 
@@ -557,7 +557,7 @@ public class ImageMounter implements AutoCloseable
 		throw new BWFLAException("Mounting image '" + image + "' failed!");
 	}
 
-	private static DeprecatedProcessRunner mountFileSystem(Path device, Path dest, FileSystemType fsType, boolean readonly, Logger log)
+	private static ProcessRunner mountFileSystem(Path device, Path dest, FileSystemType fsType, boolean readonly, Logger log)
 			throws BWFLAException, IOException
 	{
 		if (!Files.exists(dest)) {
@@ -575,8 +575,8 @@ public class ImageMounter implements AutoCloseable
 		}
 	}
 
-	private static DeprecatedProcessRunner ntfsMount(Path src, Path dst, String options, Logger log) throws BWFLAException {
-		DeprecatedProcessRunner process = new DeprecatedProcessRunner("sudo")
+	private static ProcessRunner ntfsMount(Path src, Path dst, String options, Logger log) throws BWFLAException {
+		ProcessRunner process = new ProcessRunner("sudo")
 				.addArgument("--non-interactive")
 				.addArgument("ntfs-3g")
 				.addArguments("-o", "no_detach")
@@ -605,7 +605,7 @@ public class ImageMounter implements AutoCloseable
 		throw new BWFLAException("mount failed");
 	}
 
-	private static DeprecatedProcessRunner rcloneMount(Path src, Path dst, MountOptions options, Logger log) throws BWFLAException {
+	private static ProcessRunner rcloneMount(Path src, Path dst, MountOptions options, Logger log) throws BWFLAException {
 
 		Map<String, String> userOption = options.getUserOptions();
 		String endpoint = userOption.get("endpoint");
@@ -615,7 +615,7 @@ public class ImageMounter implements AutoCloseable
 		String secret = userOption.get("SecretAccessKey");
 		String token = userOption.get("SessionToken");
 
-		DeprecatedProcessRunner process = new DeprecatedProcessRunner("sudo")
+		ProcessRunner process = new ProcessRunner("sudo")
 				.addArgument("-E")
 				.addArgument("rclone")
 				.addArguments("-vvv", "--debug-fuse", "--s3-env-auth=true")
@@ -657,7 +657,7 @@ public class ImageMounter implements AutoCloseable
 	}
 
 	private static void sysMount(Path src, Path dst, String fs, String options, Logger log) throws BWFLAException, IOException {
-		DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		ProcessRunner process = new ProcessRunner();
 		process.setLogger(log);
 		process.setCommand("mount");
 		if (fs != null)
@@ -673,7 +673,7 @@ public class ImageMounter implements AutoCloseable
 		}
 	}
 
-	private static DeprecatedProcessRunner lklMount(Path path, Path dest, String fsType, Logger log, boolean isReadOnly) throws BWFLAException {
+	private static ProcessRunner lklMount(Path path, Path dest, String fsType, Logger log, boolean isReadOnly) throws BWFLAException {
 
 		if(fsType != null && fsType.equalsIgnoreCase("fat32"))
 			fsType = "vfat";
@@ -690,7 +690,7 @@ public class ImageMounter implements AutoCloseable
 			}
 		}
 
-		DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		ProcessRunner process = new ProcessRunner();
 		process.setLogger(log);
 
 		if(fsType.equalsIgnoreCase("iso9660"))
@@ -739,7 +739,7 @@ public class ImageMounter implements AutoCloseable
 			return;
 		}
 
-		DeprecatedProcessRunner process = new DeprecatedProcessRunner("sudo");
+		ProcessRunner process = new ProcessRunner("sudo");
 		process.setLogger(log);
 
 		process.addArgument("fusermount");
@@ -753,7 +753,7 @@ public class ImageMounter implements AutoCloseable
 
 	private static boolean isMountpoint(Path mountpoint, Logger log)
 	{
-		DeprecatedProcessRunner process = new DeprecatedProcessRunner("mountpoint");
+		ProcessRunner process = new ProcessRunner("mountpoint");
 		process.setLogger(log);
 		process.addArgument(mountpoint.toAbsolutePath().toString());
 		return process.execute();

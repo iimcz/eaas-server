@@ -21,7 +21,7 @@ package de.bwl.bwfla.envproposer.impl;
 
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ public class FileArchiveUtils
 {
 	public static void untar(InputStream source, Path outpath, Logger log) throws BWFLAException
 	{
-		final DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		final ProcessRunner process = new ProcessRunner();
 		process.setCommand("tar");
 		process.addArgument("--no-same-owner");
 		process.addArguments("-xzf", "-");
@@ -69,7 +69,7 @@ public class FileArchiveUtils
 
 	public static void unzip(Path source, Path outpath, Logger log) throws BWFLAException
 	{
-		final DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		final ProcessRunner process = new ProcessRunner();
 		process.setCommand("unzip");
 		process.addArgument("-qq");
 		process.addArgument(source.toString());
@@ -83,7 +83,7 @@ public class FileArchiveUtils
 
 	public static void tar(Path content, Path archive, Logger log) throws BWFLAException
 	{
-		final DeprecatedProcessRunner tar = new DeprecatedProcessRunner("tar");
+		final ProcessRunner tar = new ProcessRunner("tar");
 		tar.addArguments("--create", "--auto-compress", "--totals");
 		tar.addArguments("--file", archive.toString());
 		tar.addArguments("--directory", content.toString());
@@ -108,7 +108,7 @@ public class FileArchiveUtils
 
 	private static void sync() throws BWFLAException
 	{
-		final DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		final ProcessRunner process = new ProcessRunner();
 		process.setCommand("sync");
 		if (!process.execute())
 			throw new BWFLAException("Syncing filesystem failed!");

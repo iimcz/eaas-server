@@ -23,7 +23,7 @@ import de.bwl.bwfla.blobstore.api.BlobDescription;
 import de.bwl.bwfla.blobstore.api.BlobHandle;
 import de.bwl.bwfla.blobstore.client.BlobStoreClient;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.emucomp.api.AbstractDataResource;
 import de.bwl.bwfla.emucomp.api.ComponentConfiguration;
 import de.bwl.bwfla.emucomp.api.ComponentState;
@@ -54,7 +54,7 @@ public abstract class ContainerBean extends EaasComponentBean implements Contain
 
 	protected ContainerConfiguration config;
 
-	protected final DeprecatedProcessRunner conRunner = new DeprecatedProcessRunner();
+	protected final ProcessRunner conRunner = new ProcessRunner();
 
 	protected final BindingsManager bindings = new BindingsManager();
 
@@ -129,7 +129,7 @@ public abstract class ContainerBean extends EaasComponentBean implements Contain
 
 	public static void sync() throws BWFLAException
 	{
-		final DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		final ProcessRunner process = new ProcessRunner();
 		process.setCommand("sync");
 		if (!process.execute())
 			throw new BWFLAException("Syncing filesystem failed!");
@@ -223,7 +223,7 @@ public abstract class ContainerBean extends EaasComponentBean implements Contain
 					ContainerBean.copy(conRunner.getStdErrPath(), outdir);
 
 					// Create an archive file
-					final DeprecatedProcessRunner tar = new DeprecatedProcessRunner("tar");
+					final ProcessRunner tar = new ProcessRunner("tar");
 					tar.addArguments("--create", "--auto-compress", "--totals");
 					tar.addArguments("--file", archive.toString());
 					tar.addArguments("--directory", outdir.toString());
@@ -331,7 +331,7 @@ public abstract class ContainerBean extends EaasComponentBean implements Contain
 		conRunner.cleanup();
 
 		{
-			DeprecatedProcessRunner runner = new DeprecatedProcessRunner("sudo");
+			ProcessRunner runner = new ProcessRunner("sudo");
 			runner.addArguments("--non-interactive", "--", "rm", "-r", "-f");
 			runner.addArgument(this.getOutputDir().toString());
 			if(!runner.execute()){

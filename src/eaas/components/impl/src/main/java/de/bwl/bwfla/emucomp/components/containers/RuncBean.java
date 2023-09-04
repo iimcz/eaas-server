@@ -20,7 +20,7 @@
 package de.bwl.bwfla.emucomp.components.containers;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.common.utils.net.ConfigKey;
 import de.bwl.bwfla.common.utils.net.PortRangeProvider;
 import de.bwl.bwfla.emucomp.api.ContainerConfiguration;
@@ -46,7 +46,7 @@ public class RuncBean extends ContainerBean
 
 	boolean isGui = false;
 
-	private DeprecatedProcessRunner xpraRunner = new DeprecatedProcessRunner();
+	private ProcessRunner xpraRunner = new ProcessRunner();
 
 	@Override
 	protected void prepare() throws Exception
@@ -65,7 +65,7 @@ public class RuncBean extends ContainerBean
 			final String conConfigPath = Paths.get(workdir, "config.json").toString();
 			final String rootfs = bindings.lookup(config.getRootFilesystem());
 
-			final DeprecatedProcessRunner cgen = new DeprecatedProcessRunner();
+			final ProcessRunner cgen = new ProcessRunner();
 			cgen.setCommand("emucon-cgen");
 			if (config.getCustomSubdir() != null)
 				cgen.addArguments("--rootfs", rootfs + "/" + config.getCustomSubdir());
@@ -200,12 +200,12 @@ public class RuncBean extends ContainerBean
 		return port;
 	}
 
-	private void stopXpraServer(DeprecatedProcessRunner runner) throws BWFLAException {
+	private void stopXpraServer(ProcessRunner runner) throws BWFLAException {
 		final int xpraProcessId = runner.getProcessId();
 		LOG.info("Stopping Xpra server " + xpraProcessId + "...");
 
 		// We need to send INT signal to gracefully stop Xpra server
-		DeprecatedProcessRunner xpraKiller = new DeprecatedProcessRunner();
+		ProcessRunner xpraKiller = new ProcessRunner();
 		xpraKiller.setCommand("kill");
 		xpraKiller.addArgument("-SIGINT");
 		xpraKiller.addArgument("" + xpraProcessId);

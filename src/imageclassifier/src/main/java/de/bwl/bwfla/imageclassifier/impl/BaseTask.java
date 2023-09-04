@@ -63,7 +63,7 @@ import org.apache.tamaya.ConfigurationProvider;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.taskmanager.BlockingTask;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.imageclassifier.client.IdentificationRequest;
 
 
@@ -347,12 +347,12 @@ public abstract class BaseTask extends BlockingTask<Object>
 	{
 		log.info("running disktype");
 		try {
-			DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+			ProcessRunner process = new ProcessRunner();
 			process.setLogger(log);
 			process.setCommand("disktype");
 			process.addArgument(isopath.toString());
 
-			final DeprecatedProcessRunner.Result result = process.executeWithResult(false)
+			final ProcessRunner.Result result = process.executeWithResult(false)
 					.orElse(null);
 
 			if (result == null || !result.successful())

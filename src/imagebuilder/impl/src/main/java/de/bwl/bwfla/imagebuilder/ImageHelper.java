@@ -20,7 +20,7 @@
 package de.bwl.bwfla.imagebuilder;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.common.utils.Zip32Utils;
 import de.bwl.bwfla.imagebuilder.api.ImageContentDescription;
 import org.apache.commons.io.IOUtils;
@@ -69,7 +69,7 @@ public class ImageHelper
 			final String command = "sudo --non-interactive /usr/local/bin/singularity image.export " + image.toString()
 					+ " | tar -C " + dstdir.toString() + " -v -xf -";
 
-			final DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+			final ProcessRunner process = new ProcessRunner();
 			process.setCommand("/bin/bash");
 			process.addArguments("-c");
 			process.addArgument(command);
@@ -93,7 +93,7 @@ public class ImageHelper
 	private static void untar(ImageContentDescription.StreamableDataSource source, Path dstdir, Logger log)
 			throws BWFLAException
 	{
-		final DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		final ProcessRunner process = new ProcessRunner();
 		process.setCommand("sudo");
 		process.addArguments("--non-interactive");
 		process.addArgument("tar");
@@ -140,7 +140,7 @@ public class ImageHelper
 	}
 
 	public static void rsync(Path sourceDir, Path targetDir, Logger log) throws BWFLAException {
-		DeprecatedProcessRunner rsyncRunner = new DeprecatedProcessRunner();
+		ProcessRunner rsyncRunner = new ProcessRunner();
 		rsyncRunner.setCommand("rsync");
 		rsyncRunner.addArgument("-crlptgoD");
 		rsyncRunner.addArguments( "--delete"); // , "--no-o", "--no-g");

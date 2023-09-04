@@ -20,13 +20,11 @@
 package de.bwl.bwfla.imagebuilder;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
 import de.bwl.bwfla.imagebuilder.api.ImageContentDescription;
 import de.bwl.bwfla.imagebuilder.api.ImageDescription;
 import de.bwl.bwfla.imagebuilder.api.metadata.DockerImport;
 import de.bwl.bwfla.imagebuilder.api.metadata.ImageBuilderMetadata;
 
-import javax.json.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;

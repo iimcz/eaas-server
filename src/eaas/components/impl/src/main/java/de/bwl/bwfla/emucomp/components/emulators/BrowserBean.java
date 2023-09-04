@@ -1,16 +1,15 @@
 package de.bwl.bwfla.emucomp.components.emulators;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.common.utils.NetworkUtils;
 import de.bwl.bwfla.emucomp.api.Drive;
-import de.bwl.bwfla.emucomp.api.EmulatorUtils;
 import de.bwl.bwfla.emucomp.api.MachineConfiguration;
 import de.bwl.bwfla.emucomp.api.Nic;
 
 public class BrowserBean extends EmulatorBean {
 
-    private DeprecatedProcessRunner proxyRunner;
+    private ProcessRunner proxyRunner;
     private String nic;
     private boolean isReady = false;
 
@@ -18,7 +17,7 @@ public class BrowserBean extends EmulatorBean {
     boolean isBeanReady()
     {
         if(!isReady && this.isContainerModeEnabled()) {
-            DeprecatedProcessRunner pr = new DeprecatedProcessRunner("sudo");
+            ProcessRunner pr = new ProcessRunner("sudo");
             pr.addArguments("runc", "exec", this.getContainerId(), "stat", "/tmp/eaas-proxy.run/run");
             isReady = pr.execute();
         }

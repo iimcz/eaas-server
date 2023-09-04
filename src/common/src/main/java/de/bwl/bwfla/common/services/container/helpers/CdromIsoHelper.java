@@ -32,7 +32,7 @@ import java.util.logging.Logger;
 
 import de.bwl.bwfla.common.services.container.types.CdromContainer;
 import de.bwl.bwfla.common.services.container.types.Container;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 
 /**
  * @author iv1004
@@ -74,7 +74,7 @@ public class CdromIsoHelper extends ContainerHelper
 			}	
 			printWriter.flush();
 			
-			DeprecatedProcessRunner runner = new DeprecatedProcessRunner("mkisofs");
+			ProcessRunner runner = new ProcessRunner("mkisofs");
 			runner.addArguments("-J", "-r", "-hfs");
 			runner.addArguments("-o", dest.getAbsolutePath());
 			runner.addArguments("-path-list", pathnames.getAbsolutePath());

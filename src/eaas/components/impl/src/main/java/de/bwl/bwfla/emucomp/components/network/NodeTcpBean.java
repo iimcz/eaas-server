@@ -1,7 +1,7 @@
 package de.bwl.bwfla.emucomp.components.network;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.common.utils.NetworkUtils;
 import de.bwl.bwfla.common.utils.net.ConfigKey;
 import de.bwl.bwfla.common.utils.net.PortRangeProvider;
@@ -21,8 +21,8 @@ import java.util.logging.Level;
 
 public class NodeTcpBean extends EaasComponentBean {
 
-    protected DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
-    private ArrayList<DeprecatedProcessRunner> vdeProcesses = new ArrayList<DeprecatedProcessRunner>();
+    protected ProcessRunner runner = new ProcessRunner();
+    private ArrayList<ProcessRunner> vdeProcesses = new ArrayList<ProcessRunner>();
 
     @Inject
     @ConfigKey("components.tcpNode.ports")
@@ -80,7 +80,7 @@ public class NodeTcpBean extends EaasComponentBean {
             throw new BWFLAException(e);
         }
 
-        DeprecatedProcessRunner process = new DeprecatedProcessRunner("vde_switch");
+        ProcessRunner process = new ProcessRunner("vde_switch");
         process.addArgument("-hub");
         process.addArgument("-s");
         process.addArgument(vdeSocketsPath.toString());

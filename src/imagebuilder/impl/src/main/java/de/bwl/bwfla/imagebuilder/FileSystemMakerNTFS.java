@@ -20,7 +20,7 @@
 package de.bwl.bwfla.imagebuilder;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 
 import java.nio.file.Path;
 import java.util.logging.Logger;
@@ -36,7 +36,7 @@ public class FileSystemMakerNTFS implements IFileSystemMaker
 
 	@Override
 	public void execute(Path device, String label, Logger log) throws BWFLAException {
-		final DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		final ProcessRunner process = new ProcessRunner();
 		process.setLogger(log);
 		process.setCommand("mkfs.ntfs");
 		if(label != null)

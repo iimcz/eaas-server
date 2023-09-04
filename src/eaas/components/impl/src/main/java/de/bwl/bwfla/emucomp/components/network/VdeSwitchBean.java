@@ -27,7 +27,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.common.utils.NetworkUtils;
 import de.bwl.bwfla.emucomp.api.ComponentConfiguration;
 import de.bwl.bwfla.emucomp.control.connectors.EthernetConnector;
@@ -41,7 +41,7 @@ import de.bwl.bwfla.common.exceptions.BWFLAException;
 //       port allocation
 public class VdeSwitchBean extends NetworkSwitchBean
 {
-	protected final DeprecatedProcessRunner runner;
+	protected final ProcessRunner runner;
 	protected final Map<String, Connection> connections;
 	protected final Path vdeSocketsPath;
 
@@ -49,7 +49,7 @@ public class VdeSwitchBean extends NetworkSwitchBean
 
 	public VdeSwitchBean()
 	{
-		this.runner = new DeprecatedProcessRunner();
+		this.runner = new ProcessRunner();
 		this.connections = new ConcurrentHashMap<>();
 		this.vdeSocketsPath = this.getWorkingDir()
 				.resolve("sockets");
@@ -154,13 +154,13 @@ public class VdeSwitchBean extends NetworkSwitchBean
 	{
 		private final String endpoint;
 		private final String vdeSocketsPath;
-		private final DeprecatedProcessRunner runner;
+		private final ProcessRunner runner;
 
 		public Connection(String endpoint, String vdeSocketsPath, Logger log)
 		{
 			this.endpoint = endpoint;
 			this.vdeSocketsPath = vdeSocketsPath;
-			this.runner = new DeprecatedProcessRunner()
+			this.runner = new ProcessRunner()
 					.setLogger(log);
 		}
 

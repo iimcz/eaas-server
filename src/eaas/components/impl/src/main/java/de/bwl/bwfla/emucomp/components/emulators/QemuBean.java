@@ -15,7 +15,7 @@ import org.apache.tamaya.ConfigurationProvider;
 import org.apache.tamaya.inject.api.Config;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.emucomp.api.Drive;
 import de.bwl.bwfla.emucomp.api.Drive.DriveType;
 import de.bwl.bwfla.emucomp.api.Nic;
@@ -435,11 +435,11 @@ public class QemuBean extends EmulatorBean
 							.apply(command);
 				}
 
-				DeprecatedProcessRunner echo = new DeprecatedProcessRunner("echo");
+				ProcessRunner echo = new ProcessRunner("echo");
 				echo.addArgument(command);
-				DeprecatedProcessRunner socat = new DeprecatedProcessRunner("socat");
+				ProcessRunner socat = new ProcessRunner("socat");
 				socat.addArguments("-", "UNIX-CONNECT:" + monitor_path);
-				DeprecatedProcessRunner runner = DeprecatedProcessRunner.pipe(echo, socat);
+				ProcessRunner runner = ProcessRunner.pipe(echo, socat);
 				runner.execute();
 			} else {
 				LOG.severe("Command to qemu monitor is not valid!");
@@ -448,11 +448,11 @@ public class QemuBean extends EmulatorBean
 
 	private boolean runKvmCheck() throws BWFLAException
 	{
-		final DeprecatedProcessRunner runner = new DeprecatedProcessRunner("kvm-ok");
+		final ProcessRunner runner = new ProcessRunner("kvm-ok");
 		runner.redirectStdErrToStdOut(false);
 		runner.setLogger(LOG);
 		try {
-			final DeprecatedProcessRunner.Result result = runner.executeWithResult()
+			final ProcessRunner.Result result = runner.executeWithResult()
 					.orElse(null);
 
 			if (result == null || !result.successful())

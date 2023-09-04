@@ -19,7 +19,7 @@
 
 package de.bwl.bwfla.emil;
 
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.common.services.security.Role;
 import de.bwl.bwfla.common.services.security.Secured;
 
@@ -56,7 +56,7 @@ public class ErrorReport
 		try {
 			outpath = Files.createTempFile("eaas-er-", ".gpg");
 
-			final DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
+			final ProcessRunner runner = new ProcessRunner();
 			runner.setCommand("/libexec/generate-error-report");
 			runner.addArgument(outpath.toString());
 			runner.setLogger(LOG);

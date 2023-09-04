@@ -20,7 +20,7 @@
 package de.bwl.bwfla.imagebuilder;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 
 import java.nio.file.Path;
 import java.util.logging.Logger;
@@ -32,7 +32,7 @@ public class PartitionTableMakerMBR implements IPartitionTableMaker
 	{
 		if(fsType.equalsIgnoreCase("vfat"))
 			fsType = "fat32";
-		final DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		final ProcessRunner process = new ProcessRunner();
 		process.setLogger(log);
 		process.setCommand("parted");
 		process.addArgument("--script");
