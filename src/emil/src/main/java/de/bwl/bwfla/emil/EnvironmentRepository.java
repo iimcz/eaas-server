@@ -75,6 +75,7 @@ import de.bwl.bwfla.emil.utils.TaskManager;
 import de.bwl.bwfla.emucomp.api.*;
 import de.bwl.bwfla.emucomp.api.MachineConfiguration.NativeConfig;
 import de.bwl.bwfla.imageproposer.client.ImageProposer;
+import de.bwl.bwfla.objectarchive.util.ObjectArchiveHelper;
 import de.bwl.bwfla.softwarearchive.util.SoftwareArchiveHelper;
 import org.apache.tamaya.ConfigurationProvider;
 import org.apache.tamaya.inject.api.Config;
@@ -1500,6 +1501,7 @@ public class EnvironmentRepository extends EmilRest
 		migrations.register("import-legacy-image-archive-v1", this::importLegacyImageArchiveV1);
 		migrations.register("import-legacy-emulator-archive-v1", this::importLegacyEmulatorArchiveV1);
 		migrations.register("fix-checkpointed-environments-v1", this::fixCheckpointedEnvironmentsV1);
+		migrations.register("fix-object-environments-v1", this::fixObjectEnvironmentsV1);
 	}
 
 	private void removePublishedDuplicatesFromLegacyImageArchiveV1(MigrationConfig mc) throws Exception
@@ -2199,5 +2201,115 @@ public class EnvironmentRepository extends EmilRest
 		LOG.info("Fixed " + numFixed + " checkpointed environment(s), failed " + numFailed);
 		if (!MigrationUtils.acceptable(numFixed + numFailed, numFailed, maxFailureRate))
 			throw new BWFLAException("Fixing checkpointed environments failed!");
+	}
+
+	private void fixObjectEnvironmentsV1(MigrationConfig mc) throws Exception
+	{
+		final var counter = ImportCounts.counter();
+		final var machines = imagearchive.api()
+				.v2()
+				.machines();
+
+		final var objectArchiveAddress = ConfigurationProvider.getConfiguration()
+				.get("ws.objectarchive");
+
+		final var objects = new ObjectArchiveHelper(objectArchiveAddress);
+		final var replacements = Arrays.asList("", "-");
+
+		// initialize connection
+		objects.getArchives();
+
+		final Consumer<MachineConfiguration> fixer = (machine) -> {
+			try {
+				final var resources = machine.getAbstractDataResource();
+				final var updates = new ArrayList<String>();
+
+				// check all object-archive bindings...
+				for (final var resource : resources) {
+					if (!(resource instanceof ObjectArchiveBinding))
+						continue;
+
+					final var binding = (ObjectArchiveBinding) resource;
+					final var driveDataRefPrefix = "binding://" + binding.getId();
+					final var object = objects.getObjectReference(binding.getArchive(), binding.getObjectId());
+
+					// find corresponding object-reference in available drives...
+					for (final var drive : machine.getDrive()) {
+						final var driveDataRef = drive.getData();
+						if (driveDataRef == null || driveDataRef.isEmpty())
+							continue;
+
+						if (!driveDataRef.startsWith(driveDataRefPrefix))
+							continue;
+
+						// legacy references contained filenames, but now file-ids have to be used instead
+						if (driveDataRef.startsWith("FID-", driveDataRefPrefix.length() + 1))
+							break;  // looks like a file-id is already used
+
+						// NOTE: some legacy filenames can contain URL unsafe chars (e.g. " ").
+						//       These are expected to be fixed by a related migration in object-archive,
+						//       hence multiple filename variants have to be considered here too!
+						final var filename = driveDataRef.substring(driveDataRefPrefix.length() + 1);
+						final var isFilenameValid = !filename.contains(" ");
+						var isFilenameFound = false;
+
+						// find and replace a filename with a corresponding file-id...
+						for (final var file : object.files) {
+							final var url = file.getUrl();
+							if (isFilenameValid) {
+								if (url.endsWith(filename))
+									isFilenameFound = true;
+							}
+							else {
+								// check filename variants...
+								for (final var replacement : replacements) {
+									if (url.endsWith(filename.replace(" ", replacement))) {
+										isFilenameFound = true;
+										break;
+									}
+								}
+							}
+
+							if (isFilenameFound) {
+								drive.setData(driveDataRefPrefix + "/" + file.getId());
+								updates.add("Replaced object-reference: " + driveDataRef + " -> " + drive.getData());
+								break;
+							}
+						}
+
+						if (!isFilenameFound)
+							throw new IllegalStateException("Referenced object not found: " + driveDataRef);
+					}
+				}
+
+				if (updates.isEmpty())
+					return;
+
+				machines.replace(machine.getId(), machine);
+				counter.increment(ImportCounts.IMPORTED);
+
+				final var message = "Fixed " + updates.size() + " object-reference(s) in environment '"
+						+ machine.getId() + "':\n    " + String.join("\n    ", updates);
+
+				LOG.info(message);
+			}
+			catch (Exception error) {
+				LOG.log(Level.WARNING, "Fixing object-references in environment '" + machine.getId() + "' failed!", error);
+				counter.increment(ImportCounts.FAILED);
+			}
+		};
+
+		LOG.info("Fixing object-environments...");
+		try (final var envs = machines.fetch()) {
+			ParallelProcessors.consumer(fixer)
+					.consume(envs.iterator(), executor);
+		}
+
+		final var numFixed = counter.get(ImportCounts.IMPORTED);
+		final var numFailed = counter.get(ImportCounts.FAILED);
+		final var maxFailureRate = MigrationUtils.getFailureRate(mc);
+		LOG.info("Fixed " + numFixed + " object-environment(s), failed " + numFailed);
+		if (!MigrationUtils.acceptable(numFixed + numFailed, numFailed, maxFailureRate))
+			throw new BWFLAException("Fixing object-environments failed!");
 	}
 }
