@@ -12,6 +12,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -662,6 +663,7 @@ public class EmilEnvironmentRepository implements IMigratable
 		migrations.register("import-local-emil-environments", (mc) -> this.importFromFolder("import"));
 		migrations.register("import-legacy-emil-database-v1", this::importLegacyDatabaseV1);
 		migrations.register("create-absent-emil-environments", this::createAbsentEmilEnvironments);
+		migrations.register("assign-default-owner-to-emil-environments", this::assignDefaultOwnerToEmilEnvironments);
 	}
 
 	private void createAbsentEmilEnvironments(MigrationConfig mc) throws Exception
@@ -865,6 +867,53 @@ public class EmilEnvironmentRepository implements IMigratable
 		LOG.info("Imported " + numImported + " environment(s), failed " + numFailed);
 		if (!MigrationUtils.acceptable(numImported + numFailed, numFailed, MigrationUtils.getFailureRate(mc)))
 			throw new BWFLAException("Importing environments from legacy database failed!");
+	}
+
+	private void assignDefaultOwnerToEmilEnvironments(MigrationConfig mc) throws Exception
+	{
+		final var margs = mc.getArguments();
+		final var userid = margs.get("user_id");
+		final var tenantid = margs.get("tenant_id");
+		if (userid == null || tenantid == null)
+			throw new IllegalArgumentException("Owner's information is missing!");
+
+		final var userctx = new UserContext();
+		userctx.setUserId(userid);
+		userctx.setTenantId(tenantid);
+
+		final var counter = ImportCounts.counter();
+		final Consumer<EmilEnvironment> assigner = (environment) -> {
+			final var envid = environment.getEnvId();
+			try {
+				this.save(environment, true, userctx);
+				LOG.info("Assigned environment '" + envid + "' to user '" + userid + "'");
+				counter.increment(ImportCounts.IMPORTED);
+			}
+			catch (Exception error) {
+				LOG.log(Level.WARNING, "Assigning owner to environment '" + envid + "' failed!", error);
+				counter.increment(ImportCounts.FAILED);
+			}
+		};
+
+		// NOTE: only generic emil-environments seem to require ownership information!
+		final var envs = imagearchive.api()
+				.v2()
+				.metadata(MetaDataKindV2.ENVIRONMENTS)
+				.fetch(ENVIRONMENT_MAPPER);
+
+		final Predicate<EmilEnvironment> filter = (env) -> env.getOwner() == null;
+
+		LOG.info("Assigning default owner to environments...");
+		try (envs) {
+			ParallelProcessors.consumer(filter, assigner)
+					.consume(envs.iterator(), executor);
+		}
+
+		final var numAssigned = counter.get(ImportCounts.IMPORTED);
+		final var numFailed = counter.get(ImportCounts.FAILED);
+		LOG.info("Assigned default owner to " + numAssigned + " environment(s), failed " + numFailed);
+		if (!MigrationUtils.acceptable(numAssigned + numFailed, numFailed, MigrationUtils.getFailureRate(mc)))
+			throw new BWFLAException("Assigning default owner to environments failed!");
 	}
 
 	public void export()
