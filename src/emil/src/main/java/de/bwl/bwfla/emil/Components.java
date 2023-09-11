@@ -655,23 +655,14 @@ public class Components {
     }
 
 
-    // vde switch identifies sessions by ethUrl, we need to store these
-    protected void registerNetworkCleanupTask(String componentId, String switchId, String ethUrl) throws BWFLAException
+    protected void registerCleanupTask(String componentId, String taskname, TaskStack.IRunnable task) throws BWFLAException
     {
-        LOG.info("disconnecting " + ethUrl);
-        ComponentSession componentSession = sessions.get(componentId);
-        if(componentSession == null)
-            throw new BWFLAException("Component not registered " + componentId);
+        final var session = sessions.get(componentId);
+        if (session == null)
+            throw new BWFLAException("Component " + componentId + " not found!");
 
-        TaskStack cleanups = componentSession.getCleanupTasks();
-        cleanups.push( "disconnect/" + ethUrl,  () -> {
-            try {
-                componentClient.getNetworkSwitchPort(eaasGw).disconnect(switchId, ethUrl);
-            } catch (BWFLAException error) {
-                final String message = "Disconnecting component '" + componentId + "' from switch '" + switchId + "' failed!";
-                LOG.log(Level.WARNING, message, error);
-            }
-        });
+        session.getCleanupTasks()
+                .push(taskname, task);
     }
 
     protected ComponentResponse createMachineComponent(MachineComponentRequest machineDescription, TaskStack cleanups, List<EventObserver> observer)
@@ -2049,9 +2040,9 @@ public class Components {
                             .build();
 
                     esink.send(event);
-
-                    LOG.info("Session '" + session.getId() + "' expired after " + notification.getDuration());
                 }
+
+                LOG.info("Session '" + session.getId() + "' expired after " + duration + " msec(s)");
 
                 // Since scheduler tasks should complete quickly and session.release()
                 // can take longer, submit a new task to an unscheduled executor for it.

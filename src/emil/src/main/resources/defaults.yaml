@@ -18,7 +18,6 @@ emil:
   max_session_duration: 0 sec
   autorun_scripts_dir: /home/bwfla/server-data/autorun-scripts
   default_environments_path: /home/bwfla/server-data/default-environments.properties
-  retain_session: 10
 
 ws:
   blobstore: http://eaas:8080/

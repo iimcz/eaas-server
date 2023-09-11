@@ -19,6 +19,7 @@
 
 package de.bwl.bwfla.emil.datatypes;
 
+import java.time.Duration;
 import java.util.List;
 
 import javax.xml.bind.annotation.*;
@@ -74,6 +75,9 @@ public class NetworkRequest extends JaxbType {
         @XmlElement(required = false, defaultValue = "auto")
         private String hwAddress = "auto";
 
+        @XmlElement
+        private boolean ephemeral = true;
+
 
         public String getComponentId() {
             return componentId;
@@ -123,6 +127,14 @@ public class NetworkRequest extends JaxbType {
         public void setFqdn(String fqdn) {
             this.fqdn = fqdn;
         }
+
+        public boolean isEphemeral() {
+            return ephemeral;
+        }
+
+        public void setEphemeralMark(boolean ephemeral) {
+            this.ephemeral = ephemeral;
+        }
     }
 
     @XmlType
@@ -162,7 +174,9 @@ public class NetworkRequest extends JaxbType {
             this.serverIp = serverIp;
         }
     }
-    
+
+    private Duration lifetime;
+
     @XmlElement(required = true)
     private List<ComponentSpec> components;
 
@@ -200,6 +214,20 @@ public class NetworkRequest extends JaxbType {
 
     @XmlElement
     private TcpGatewayConfig tcpGatewayConfig;
+
+
+    @XmlElement
+    public void setLifetime(String lifetime) {
+        if (lifetime == null || lifetime.isEmpty())
+            return;
+
+        this.lifetime = Duration.parse(lifetime);
+    }
+
+    @XmlElement
+    public Duration getLifetime() {
+        return lifetime;
+    }
 
     public List<ComponentSpec> getComponents() {
         return components;

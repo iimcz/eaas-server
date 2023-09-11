@@ -97,23 +97,21 @@ public class SessionManager
 			session.setName(name);
 			if (lifetime < 0L) {
 				session.setLifetime(-1L);
+				session.setExpirationTimestamp(-1L);
 			}
 			else {
 				session.setLifetime(unit.toMillis(lifetime));
-				session.setExpirationTimestamp(unit.toMillis(lifetime) + timems()); // XXX needed if session is not running.
+				final var timestamp = (lifetime > 0L) ? SessionManager.timems() + session.getLifetime() : Long.MAX_VALUE;
+				session.setExpirationTimestamp(timestamp);
 			}
 
 			if (title != null && title.getComponentName() != null) {
 				final String cid = title.getComponentId();
-				final Optional<SessionComponent> result = session.components()
-						.stream()
-						.filter((component) -> cid.contentEquals(component.id()))
-						.findFirst();
+				final var component = session.components()
+						.get(cid);
 
-				if (result.isPresent()) {
-					final SessionComponent component = result.get();
+				if (component != null)
 					component.setCustomName(title.getComponentName());
-				}
 				else log.warning("Component " + cid + " not found in session " + sid + "!");
 			}
 
@@ -173,12 +171,12 @@ public class SessionManager
 		if (session == null)
 			return;
 
+		log.info("Removing session '" + id + "'...");
 		session.onTimeout(endpoint, log);
 
-		final Collection<String> components = session.components()
-				.stream()
-				.map(SessionComponent::id)
-				.collect(Collectors.toList());
+		final var components = session.components()
+				.keySet()
+				.toArray(new String[0]);
 
 		this.remove(id, components);
 	}
@@ -190,25 +188,45 @@ public class SessionManager
 	}
 
 	/** Remove session's components */
-	public void remove(String sid, Collection<String> components)
+	public void remove(String sid, Collection<String> cids)
 	{
 		sessions.computeIfPresent(sid, (unused, session) -> {
-			log.info("Removing " + components.size() + " component(s) from session " + sid + "...");
-			for (String cid : components) {
-				final boolean found = session.components()
-						.removeIf((component) -> cid.equals(component.id()));
+			final var components = new ArrayList<SessionComponent>(cids.size());
+			for (final var cid : cids) {
+				final var component = session.components()
+						.remove(cid);
 
-				if (!found)
-					continue;
+				if (component != null)
+					components.add(component);
+			}
 
+			if (components.size() > 0)
+				log.info("Removing " + components.size() + " component(s) from session " + sid + "...");
+
+			// Components should be removed in reverse-creation-order!
+			components.sort((lhs, rhs) -> Long.compare(rhs.getCreationTime(), lhs.getCreationTime()));
+
+			int numComponentsRemoved = 0;
+			int numComponentsFailed = 0;
+
+			for (final var component : components) {
 				// Release component's resources
+				final var cid = component.id();
 				try {
-					endpoint.releaseComponent(cid);
+					component.markAsRemoved();
+					if (!component.isReleased() && !component.isEphemeral())
+						endpoint.releaseComponent(cid);
+
+					++numComponentsRemoved;
 				}
 				catch (Exception error) {
-					log.log(Level.WARNING, "Releasing component " + cid + " from session " + sid + " failed!");
+					log.log(Level.WARNING, "Releasing component " + cid + " from session " + sid + " failed!", error);
+					++numComponentsFailed;
 				}
 			}
+
+			if (numComponentsRemoved + numComponentsFailed > 0)
+				log.info("Removed " + numComponentsRemoved + " component(s) from session " + sid + ", failed " + numComponentsFailed);
 
 			if (session.components().isEmpty()) {
 				// Session is empty and can be removed!
@@ -232,7 +250,7 @@ public class SessionManager
 	private void initialize()
 	{
 		final Runnable trigger = () -> executor.execute(() -> update(executor));
-		final long delay = resourceExpirationTimeout.toMillis() / 5L;
+		final long delay = resourceExpirationTimeout.toMillis() * 8L / 10L;
 		scheduler.scheduleWithFixedDelay(trigger, delay, delay, TimeUnit.MILLISECONDS);
 	}
 

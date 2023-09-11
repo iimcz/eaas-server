@@ -20,17 +20,24 @@
 package de.bwl.bwfla.emil.session;
 
 
-public class SessionComponent implements Comparable<SessionComponent>
+public class SessionComponent
 {
 	private final String id;
-
-	private String networkInfo;
+	private final long ctime;
+	private volatile boolean released;
+	private volatile boolean removed;
+	private boolean ephemeral;
+	private NetworkConnectionInfo netinfo;
 	private String customName = null;
 
 
 	public SessionComponent(String id)
 	{
 		this.id = id;
+		this.ctime = System.nanoTime();
+		this.released = false;
+		this.removed = false;
+		this.ephemeral = false;
 	}
 
 	public String id()
@@ -38,14 +45,22 @@ public class SessionComponent implements Comparable<SessionComponent>
 		return id;
 	}
 
-	public String getNetworkInfo()
+	public NetworkConnectionInfo getNetworkConnectionInfo()
 	{
-		return networkInfo;
+		if (netinfo == null)
+			netinfo = new NetworkConnectionInfo();
+
+		return netinfo;
 	}
 
-	public void setNetworkInfo(String networkInfo)
+	public void setNetworkConnectionInfo(NetworkConnectionInfo info)
 	{
-		this.networkInfo = networkInfo;
+		this.netinfo = info;
+	}
+
+	public void resetNetworkConnectionInfo()
+	{
+		this.netinfo = null;
 	}
 
 	public String getCustomName()
@@ -58,9 +73,58 @@ public class SessionComponent implements Comparable<SessionComponent>
 		this.customName = customName;
 	}
 
-	@Override
-	public int compareTo(SessionComponent other)
+	public long getCreationTime()
 	{
-		return id.compareTo(other.id());
+		return ctime;
+	}
+
+	public void markAsReleased()
+	{
+		this.released = true;
+	}
+
+	public boolean isReleased()
+	{
+		return released;
+	}
+
+	public void markAsRemoved()
+	{
+		this.removed = true;
+	}
+
+	public boolean isRemoved()
+	{
+		return removed;
+	}
+
+	public void markAsEphemeral()
+	{
+		this.ephemeral = true;
+	}
+
+	public boolean isEphemeral()
+	{
+		return ephemeral;
+	}
+
+	public static class NetworkConnectionInfo
+	{
+		private String ethurl;
+
+		public String getEthernetUrl()
+		{
+			return ethurl;
+		}
+
+		public void setEthernetUrl(String ethurl)
+		{
+			this.ethurl = ethurl;
+		}
+
+		public boolean isConnected()
+		{
+			return ethurl != null;
+		}
 	}
 }

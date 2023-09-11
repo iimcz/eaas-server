@@ -16,6 +16,8 @@ import javax.enterprise.inject.spi.CDI;
 import javax.inject.Inject;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.logging.Level;
+
 
 public class NodeTcpBean extends EaasComponentBean {
 
@@ -36,38 +38,54 @@ public class NodeTcpBean extends EaasComponentBean {
 
     @Override
     public void destroy() {
-        tcpPorts.release();
-        for (DeprecatedProcessRunner process : this.vdeProcesses) {
-            process.stop();
-            process.cleanup();
+        LOG.info("Stopping node-tcp instance...");
+        while (!vdeProcesses.isEmpty()) {
+            final var process = vdeProcesses.remove(vdeProcesses.size() - 1);
+            try {
+                process.stop();
+                process.printStdOut();
+                process.printStdErr();
+            }
+            catch (Throwable error) {
+                LOG.log(Level.WARNING, "Stopping subprocess failed!", error);
+            }
+            finally {
+                process.cleanup();
+            }
         }
+
+        tcpPorts.release();
         super.destroy();
+
+        LOG.info("Stopped node-tcp instance");
     }
 
     @Override
     public void initialize(ComponentConfiguration config) throws BWFLAException {
 
+        LOG.info("Initializing node-tcp instance...");
+
         NodeTcpConfiguration nodeConfig = (NodeTcpConfiguration) config;
-
-
 
         String hwAddress = nodeConfig.getHwAddress();
         String switchName = "nic_" + hwAddress;
+        final var vdeSocketsPath = this.getWorkingDir()
+                .resolve(switchName);
 
         int extPort;
         try {
              extPort = tcpPorts.get();
-             System.out.println("connection on port: " + extPort);
+             LOG.info("Connection on port: " + extPort);
         } catch (IOException e) {
-            e.printStackTrace();
             throw new BWFLAException(e);
         }
 
         DeprecatedProcessRunner process = new DeprecatedProcessRunner("vde_switch");
         process.addArgument("-hub");
         process.addArgument("-s");
-        process.addArgument(this.getWorkingDir().resolve(switchName).toString());
-        if(!process.start())
+        process.addArgument(vdeSocketsPath.toString());
+        process.setLogger(LOG);
+        if (!process.start(false))
             throw new BWFLAException("Cannot create vde_switch hub for VdeSlirpBean");
         vdeProcesses.add(process);
 
@@ -77,7 +95,7 @@ public class NodeTcpBean extends EaasComponentBean {
         {
             // Usage: ./eaas-proxy "" /tmp/switch1 "" 10.0.0.1/24 dhcpd
             runner.addArgument("");
-            runner.addArgument(this.getWorkingDir().resolve(switchName).toString());
+            runner.addArgument(vdeSocketsPath.toString());
             runner.addArgument("");
 
             runner.addArgument(nodeConfig.getDhcpNetworkAddress() + "/" + nodeConfig.getDhcpNetworkMask());
@@ -91,7 +109,7 @@ public class NodeTcpBean extends EaasComponentBean {
             // arg5 privateDestIp (internal server)
             // arg6 privateDestIpPort
             runner.addArgument(extPort + "");
-            runner.addArgument(this.getWorkingDir().resolve(switchName).toString());
+            runner.addArgument(vdeSocketsPath.toString());
             runner.addArgument(NetworkUtils.getRandomHWAddress());
             runner.addArgument("dhcp");
             // runner.addArgument(nodeConfig.getPrivateNetIp() + "/" + nodeConfig.getPrivateNetMask());
@@ -113,11 +131,14 @@ public class NodeTcpBean extends EaasComponentBean {
             this.addControlConnector(new InfoDummyConnector(info));
         }
 
-        if (!runner.start())
+        runner.setLogger(LOG);
+        if (!runner.start(false))
             throw new BWFLAException("Cannot start node process");
         vdeProcesses.add(runner);
 
-        this.addControlConnector(new EthernetConnector(hwAddress, this.getWorkingDir().resolve(switchName)));
+        this.addControlConnector(new EthernetConnector(hwAddress, vdeSocketsPath, LOG));
+
+        LOG.info("Initialized node-tcp instance");
     }
 
     @Override

@@ -20,13 +20,13 @@
 package de.bwl.bwfla.emil;
 
 import java.net.URI;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.json.Json;
@@ -35,7 +35,6 @@ import javax.ws.rs.BadRequestException;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
-import javax.ws.rs.InternalServerErrorException;
 import javax.ws.rs.NotFoundException;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -46,9 +45,12 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import com.webcohesion.enunciate.metadata.rs.TypeHint;
+import de.bwl.bwfla.api.emucomp.Component;
+import de.bwl.bwfla.api.emucomp.NetworkSwitch;
 import de.bwl.bwfla.common.services.security.Role;
 import de.bwl.bwfla.common.services.security.Secured;
 import de.bwl.bwfla.common.utils.NetworkUtils;
+import de.bwl.bwfla.common.utils.TaskStack;
 import de.bwl.bwfla.emil.datatypes.rest.NodeTcpComponentRequest;
 import de.bwl.bwfla.emil.datatypes.rest.SlirpComponentRequest;
 import de.bwl.bwfla.emil.datatypes.rest.SwitchComponentRequest;
@@ -57,7 +59,7 @@ import de.bwl.bwfla.emil.session.Session;
 import de.bwl.bwfla.emil.session.SessionComponent;
 import de.bwl.bwfla.emil.session.SessionManager;
 import de.bwl.bwfla.emucomp.api.NodeTcpConfiguration;
-import org.apache.tamaya.inject.api.Config;
+import org.apache.tamaya.ConfigurationProvider;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.services.rest.ErrorInformation;
@@ -72,23 +74,31 @@ import de.bwl.bwfla.emucomp.client.ComponentClient;
 @ApplicationScoped
 public class Networks {
     @Inject
-    private ComponentClient componentClient;
-
-    @Inject
     private SessionManager sessions = null;
 
     @Inject
     private Components components = null;
 
-    @Inject
-    @Config(value = "ws.eaasgw")
-    private String eaasGw;
-
-    @Inject
-    @Config(value = "emil.retain_session")
-    private String retain_session;
+    private Component componentWsClient = null;
+    private NetworkSwitch networkSwitchWsClient = null;
 
     protected final static Logger LOG = Logger.getLogger("NETWORKS");
+
+    @PostConstruct
+    private void initialize()
+    {
+        try {
+            final var client = ComponentClient.get();
+            final var eaasGwAddress = ConfigurationProvider.getConfiguration()
+                    .get("ws.eaasgw");
+
+            this.componentWsClient = client.getComponentPort(eaasGwAddress);
+            this.networkSwitchWsClient = client.getNetworkSwitchPort(eaasGwAddress);
+        }
+        catch (Exception error) {
+            throw new IllegalStateException("Initializing networks failed!", error);
+        }
+    }
 
     @POST
     @Secured(roles = {Role.PUBLIC})
@@ -103,21 +113,18 @@ public class Networks {
                     .build());
         }
 
+        NetworkSession session = null;
         NetworkResponse networkResponse = null;
         try {
             // a switch comes included with every network group
             final SwitchComponentRequest switchComponentRequest = new SwitchComponentRequest();
             switchComponentRequest.setConfig(new NetworkSwitchConfiguration());
             final String switchId = components.createComponent(switchComponentRequest).getId();
-            final NetworkSession session = new NetworkSession(switchId, networkRequest);
+            session = new NetworkSession(switchId, networkRequest);
             session.components()
-                    .add(new SessionComponent(switchId));
+                    .put(switchId, new SessionComponent(switchId));
 
-            DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-            
             sessions.register(session);
-            sessions.setLifetime(session.id(), Long.parseLong(retain_session), TimeUnit.MINUTES,
-                    "autodetached session @ " + dateFormat.format(new Date()));
 
             networkResponse = new NetworkResponse(session.id());
 
@@ -137,13 +144,10 @@ public class Networks {
                     slirpConfig.setNetwork(networkRequest.getNetwork());
 
                 final String slirpId = components.createComponent(slirpConfig).getId();
-                session.components()
-                        .add(new SessionComponent(slirpId));
+                final var slirpUrl = this.getControlUrls(slirpId)
+                        .get("ws+ethernet+" + slirpMac);
 
-                Map<String, URI> controlUrls = ComponentClient.controlUrlsToMap(componentClient.getComponentPort(eaasGw).getControlUrls(slirpId));
-                String slirpUrl = controlUrls.get("ws+ethernet+" + slirpMac).toString();
-
-                componentClient.getNetworkSwitchPort(eaasGw).connect(switchId, slirpUrl);
+                this.connect(session, slirpId, slirpUrl.toString(), false);
             }
 
 
@@ -164,7 +168,6 @@ public class Networks {
 //            }
 
             if(networkRequest.isTcpGateway() && networkRequest.getTcpGatewayConfig() != null) {
-                String nodeTcpId = null;
                 NetworkRequest.TcpGatewayConfig tcpGatewayConfig = networkRequest.getTcpGatewayConfig();
 
                 NodeTcpConfiguration nodeConfig = new NodeTcpConfiguration();
@@ -186,31 +189,39 @@ public class Networks {
 
                 final NodeTcpComponentRequest nodeComponentRequest = new NodeTcpComponentRequest();
                 nodeComponentRequest.setConfig(nodeConfig);
-                nodeTcpId = components.createComponent(nodeComponentRequest).getId();
-                session.components()
-                        .add(new SessionComponent(nodeTcpId));
 
-                Map<String, URI> controlUrls = ComponentClient.controlUrlsToMap(componentClient.getComponentPort(eaasGw).getControlUrls(nodeTcpId));
-                String nodeTcpUrl = controlUrls.get("ws+ethernet+" + nodeConfig.getHwAddress()).toString();
-                componentClient.getNetworkSwitchPort(eaasGw).connect(switchId, nodeTcpUrl);
+                final var nodeTcpId = components.createComponent(nodeComponentRequest).getId();
+                final var controlUrls = this.getControlUrls(nodeTcpId);
+                final var nodeTcpUrl = controlUrls.get("ws+ethernet+" + nodeConfig.getHwAddress());
+                this.connect(session, nodeTcpId, nodeTcpUrl.toString(), false);
 
-                String nodeInfoUrl = controlUrls.get("info").toString();
-                System.out.println(nodeInfoUrl);
-                networkResponse.addUrl("tcp", URI.create(nodeInfoUrl));
+                final var nodeInfoUrl = controlUrls.get("info");
+                networkResponse.addUrl("tcp", nodeInfoUrl);
             }
 
             // add all the other components
             for (NetworkRequest.ComponentSpec component : networkRequest.getComponents()) {
-                this.addComponent(session, switchId, component);
+                this.connect(session, component);
             }
 
-            LOG.info("Created network '" + session.id() + "'");
+            var msgdetails = "";
+            if (networkRequest.getLifetime() != null) {
+                final var instant = Instant.now();
+                final var lifetime = networkRequest.getLifetime();
+                sessions.setLifetime(session.id(), lifetime.toMillis(), TimeUnit.MILLISECONDS, "Auto-detached network @ " + instant);
+                msgdetails += ", auto-detached for " + lifetime;
+            }
+
+            LOG.info("Created network '" + session.id() + "'" + msgdetails);
             return Response.status(Response.Status.CREATED)
                     .entity(networkResponse)
                     .build();
         }
         catch (Exception error) {
             LOG.log(Level.WARNING, "Creating network failed!", error);
+            if (session != null)
+                sessions.remove(session.id());
+
             throw Components.newInternalError(error);
         }
     }
@@ -220,38 +231,34 @@ public class Networks {
     @Consumes(MediaType.APPLICATION_JSON)
     @Path("/{id}/components")
     public void addComponent(@PathParam("id") String id, NetworkRequest.ComponentSpec component) {
-        final Session session = this.lookup(id);
-        final String switchId = ((NetworkSession) session).getSwitchId();
-        this.addComponent(session, switchId, component);
+        final var network = this.lookup(id);
+        this.connect(network, component);
     }
 
+    @Deprecated
     @POST
     @Secured(roles = {Role.PUBLIC})
     @Consumes(MediaType.APPLICATION_JSON)
     @Path("/{id}/addComponentToSwitch")
     public void addComponentToSwitch(@PathParam("id") String id, NetworkRequest.ComponentSpec component) {
-        final Session session = this.lookup(id);
-        final String switchId = ((NetworkSession) session).getSwitchId();
-        this.addComponent(session, switchId, component, false);
+        final var network = this.lookup(id);
+        this.connect(network, component);
     }
 
     @POST
     @Secured(roles = {Role.RESTRICTED})
     @Path("/{id}/components/{componentId}/disconnect")
     public void disconnectComponent(@PathParam("id") String id, @PathParam("componentId") String componentId) {
-        final Session session = this.lookup(id);
-        final String switchId = ((NetworkSession) session).getSwitchId();
+        final var network = this.lookup(id);
+        final var component = network.component(componentId);
         try {
-            this.disconnectComponent(session, switchId, componentId);
+            this.disconnect(network, component);
         }
         catch (BWFLAException e)
         {
-            LOG.log(Level.WARNING, "Disconnecting component '" + componentId + "' from network '" + id + "' failed!", e);
-            throw new ServerErrorException(Response
-                    .status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(new ErrorInformation(
-                            "Could not disconnect component: " + componentId , e.getMessage()))
-                    .build());
+            final var message = "Disconnecting component '" + componentId + "' from network '" + id + "' failed!";
+            LOG.log(Level.WARNING, message, e);
+            throw Networks.error(Response.Status.INTERNAL_SERVER_ERROR, message, e.getMessage());
         }
     }
 
@@ -259,9 +266,9 @@ public class Networks {
     @Secured(roles = {Role.RESTRICTED})
     @Path("/{id}/components/{componentId}")
     public void removeComponent(@PathParam("id") String id, @PathParam("componentId") String componentId) {
-        final Session session = this.lookup(id);
-        final String switchId = ((NetworkSession) session).getSwitchId();
-        this.removeComponent(session, switchId, componentId);
+        final var network = this.lookup(id);
+        final var component = network.component(componentId);
+        this.remove(network, component);
     }
 
     @GET
@@ -271,118 +278,153 @@ public class Networks {
     public Response wsConnection(@PathParam("id") String id)
     {
         try {
-            final Session session = this.lookup(id);
-            final String switchId = ((NetworkSession) session).getSwitchId();
-            String link = componentClient.getNetworkSwitchPort(eaasGw).wsConnect(switchId);
+            final var network = this.lookup(id);
+            final var switchId = network.getSwitchId();
+            String link = networkSwitchWsClient.wsConnect(switchId);
             final JsonObject json = Json.createObjectBuilder()
                     .add("wsConnection", link)
                     .add("ok", true)
                     .build();
 
             return Emil.createResponse(Response.Status.OK, json.toString());
-        } catch (BWFLAException e) {
-            LOG.log(Level.WARNING, "Connecting to network '" + id + "' failed!", e);
-            throw new ServerErrorException(Response
-                    .status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(new ErrorInformation(
-                            "Could not find switch for session: " + id , e.getMessage()))
-                    .build());
+        }
+        catch (BWFLAException exception) {
+            final var message = "Connecting to network '" + id + "' failed!";
+            LOG.log(Level.WARNING, message, exception);
+            throw Networks.error(Response.Status.INTERNAL_SERVER_ERROR, message, exception.getMessage());
         }
     }
 
-    private void addComponent(Session session, String switchId, NetworkRequest.ComponentSpec component) {
-        addComponent(session, switchId, component, true);
-    }
-
-    private void addComponent(Session session, String switchId, NetworkRequest.ComponentSpec component, boolean addToGroup) {
+    private void connect(NetworkSession network, NetworkRequest.ComponentSpec cspec)
+    {
+        final var nid = network.id();
+        final var cid = cspec.getComponentId();
         try {
-
-            final Map<String, URI> map = this.getControlUrls(component.getComponentId());
+            final Map<String, URI> map = this.getControlUrls(cid);
 
             URI uri;
-            if (component.getHwAddress().equals("auto")) {
+            if (cspec.getHwAddress().equals("auto")) {
                 uri = map.entrySet().stream()
                         .filter(e -> e.getKey().startsWith("ws+ethernet+"))
                         .findAny()
-                        .orElseThrow(() -> new InternalServerErrorException(
-                                Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                                        .entity(new ErrorInformation(
-                                                "Cannot find suitable ethernet URI for requested component.",
-                                                "Requested component has either been stopped or is not suitable for networking"))
-                                        .build()))
+                        .orElseThrow(() -> {
+                            final var message = "Cannot find suitable ethernet URI for requested component.";
+                            final var details = "Requested component has either been stopped or is not suitable for networking";
+                            return Networks.error(Response.Status.INTERNAL_SERVER_ERROR, message, details);
+                        })
                         .getValue();
-            } else {
-                uri = map.get("ws+ethernet+" + component.getHwAddress());
+            }
+            else {
+                uri = map.get("ws+ethernet+" + cspec.getHwAddress());
             }
 
             if(uri == null) {
-                throw new ServerErrorException(Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                        .entity(new ErrorInformation(
-                                "Cannot find suitable ethernet URI for requested component.",
-                                "Requested component has either been stopped or is not suitable for networking"))
-                        .build());
-            }
-            
-            componentClient.getNetworkSwitchPort(eaasGw).connect(switchId, uri.toString());
-            components.registerNetworkCleanupTask(component.getComponentId(), switchId, uri.toString());
-
-            if (addToGroup) {
-                session.components()
-                        .add(new SessionComponent(component.getComponentId()));
-
-                LOG.info("Added component '" + component.getComponentId() + "' to network '" + session.id() + "'");
+                final var message = "Cannot find suitable ethernet URI for requested component.";
+                final var details = "Requested component has either been stopped or is not suitable for networking";
+                throw Networks.error(Response.Status.INTERNAL_SERVER_ERROR, message, details);
             }
 
-            LOG.info("Connected component '" + component.getComponentId() + "' to network '" + session.id() + "'");
-
-        } catch (BWFLAException error) {
-            LOG.log(Level.WARNING, "Connecting component '" + component.getComponentId() + "' to network '" + session.id() + "' failed!", error);
-            throw new ServerErrorException(Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(new ErrorInformation("Could not acquire group information.", error.getMessage()))
-                    .build());
-        }
-    }
-
-    private void disconnectComponent(Session session, String switchId, String componentId) throws BWFLAException{
-            final Map<String, URI> map = this.getControlUrls(componentId);
-
-            final String ethurl = map.entrySet().stream()
-                    .filter(e -> e.getKey().startsWith("ws+ethernet+"))
-                    .findAny()
-                    .orElseThrow(() -> new InternalServerErrorException(
-                            Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                                    .entity(new ErrorInformation("Server has encountered an internal error.",
-                                                "Cannot find suitable ethernet URI for requested component."))
-                                    .build()))
-                    .getValue().toString();
-
-            componentClient.getNetworkSwitchPort(eaasGw).disconnect(switchId, ethurl);
-            LOG.info("Disconnected component '" + componentId + "' from network '" + session.id() + "'");
-    }
-
-    private void removeComponent(Session session, String switchId, String componentId)  {
-        try {
-            disconnectComponent(session, switchId, componentId);
-            sessions.remove(session.id(), componentId);
-            LOG.info("Removed component '" + componentId + "' from network '" + session.id() + "'");
+            this.connect(network, cid, uri.toString(), cspec.isEphemeral());
         }
         catch (BWFLAException error) {
-           // we must not throw here in most cases, since the disconnect may already has happened
-            LOG.log(Level.WARNING, "Removing component '" + componentId + "' from network '" + session.id() + "' failed!", error);
+            final var message = "Connecting component '" + cid + "' to network '" + nid + "' failed!";
+            LOG.log(Level.WARNING, message, error);
+            throw Networks.error(Response.Status.INTERNAL_SERVER_ERROR, message, error.getMessage());
         }
+    }
+
+    private SessionComponent connect(NetworkSession network, String cid, String ethurl, boolean ephemeral)
+            throws BWFLAException
+    {
+        networkSwitchWsClient.connect(network.getSwitchId(), ethurl);
+
+        final var component = new SessionComponent(cid);
+        component.getNetworkConnectionInfo()
+                .setEthernetUrl(ethurl);
+
+        if (ephemeral)
+            component.markAsEphemeral();
+
+        network.components()
+                .put(cid, component);
+
+        final var nid = network.id();
+
+        final TaskStack.IRunnable cleanup = () -> {
+            try {
+                // NOTE: this hook can only be called during component cleanup,
+                //       hence it's safe to mark the component as released here
+                component.markAsReleased();
+
+                this.remove(network, component);
+            }
+            catch (Exception error) {
+                final var message = "Disconnecting component '" + cid + "' from network '" + nid + "' failed!";
+                LOG.log(Level.WARNING, message, error);
+            }
+        };
+
+        components.registerCleanupTask(cid, "network-disconnect/" + nid, cleanup);
+
+        final var kind = (ephemeral) ? "ephemeral" : "background";
+        LOG.info("Connected " + kind + " component '" + cid + "' to network '" + nid + "'");
+
+        return component;
+    }
+
+    private void disconnect(NetworkSession network, SessionComponent component) throws BWFLAException
+    {
+        final SessionComponent.NetworkConnectionInfo netinfo;
+        synchronized (component) {
+            netinfo = component.getNetworkConnectionInfo();
+            if (!netinfo.isConnected())
+                return;
+
+            // try to disconnect from network only once...
+            component.resetNetworkConnectionInfo();
+        }
+
+        networkSwitchWsClient.disconnect(network.getSwitchId(), netinfo.getEthernetUrl());
+        LOG.info("Disconnected component '" + component.id() + "' from network '" + network.id() + "'");
+    }
+
+    private void remove(NetworkSession network, SessionComponent component)
+    {
+        final var nid = network.id();
+        final var cid = component.id();
+
+        try {
+            this.disconnect(network, component);
+        }
+        catch (BWFLAException error) {
+            LOG.log(Level.WARNING, "Disconnecting component '" + cid + "' from network '" + nid + "' failed!", error);
+        }
+
+        if (!component.isRemoved())
+            sessions.remove(nid, cid);
+
+        LOG.info("Removed component '" + cid + "' from network '" + nid + "'");
     }
 
     private Map<String, URI> getControlUrls(String componentId) throws BWFLAException {
-        return ComponentClient.controlUrlsToMap(componentClient.getComponentPort(eaasGw)
-                .getControlUrls(componentId));
+        return ComponentClient.controlUrlsToMap(componentWsClient.getControlUrls(componentId));
     }
 
-    private Session lookup(String id) throws NotFoundException
+    private NetworkSession lookup(String id) throws NotFoundException
     {
         final Session session = sessions.get(id);
         if (session == null || !(session instanceof NetworkSession))
             throw new NotFoundException("Network not found: " + id);
 
-        return session;
+        return (NetworkSession) session;
+    }
+
+    public static ServerErrorException error(Response.Status status, String message, String details)
+    {
+        final var response = Response.status(status)
+                .entity(new ErrorInformation(message, details))
+                .build();
+
+        return new ServerErrorException(response);
     }
 }

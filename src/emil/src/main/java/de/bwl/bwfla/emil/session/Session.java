@@ -22,14 +22,15 @@ package de.bwl.bwfla.emil.session;
 import de.bwl.bwfla.common.utils.jaxb.JaxbType;
 import de.bwl.bwfla.emil.Components;
 
+import javax.ws.rs.NotFoundException;
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.logging.Level;
@@ -53,7 +54,7 @@ public class Session extends JaxbType
 	private long lastUpdate;
 
 	/** List of component IDs */
-	private final Set<SessionComponent> components;
+	private final Map<String, SessionComponent> components;
 
 
 	public Session()
@@ -64,7 +65,7 @@ public class Session extends JaxbType
 	public Session(String id) {
 		this.id = id;
 		this.lastUpdate = SessionManager.timems();
-		this.components = Collections.synchronizedSet(new TreeSet<>());
+		this.components = Collections.synchronizedMap(new HashMap<>());
 	}
 
 	public String id()
@@ -95,13 +96,12 @@ public class Session extends JaxbType
 	public void setLifetime(long lifetime)
 	{
 		this.lifetime = lifetime;
-		detached = true;
+		this.detached = lifetime >= 0L;
 	}
 
 	void setExpirationTimestamp(long timestamp)
 	{
 		this.expirationTimestamp = timestamp;
-		detached = true;
 	}
 
 	public boolean isDetached() {
@@ -125,9 +125,18 @@ public class Session extends JaxbType
 		return name;
 	}
 
-	public Set<SessionComponent> components()
+	public Map<String, SessionComponent> components()
 	{
 		return components;
+	}
+
+	public SessionComponent component(String cid)
+	{
+		final var component = components.get(cid);
+		if (component == null)
+			throw new NotFoundException("Component '" + cid + "' was not found in network '" + id + "'!");
+
+		return component;
 	}
 
 	public void onTimeout(Components endpoint, Logger log)
@@ -148,7 +157,9 @@ public class Session extends JaxbType
 			}
 		};
 
-		final Optional<Long> numfailed = components.stream()
+		final Optional<Long> numfailed = components.values()
+				.stream()
+				.filter((sc) -> !sc.isEphemeral())
 				.map(checker)
 				.reduce(Long::sum);
 
