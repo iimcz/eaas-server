@@ -22,11 +22,16 @@ package de.bwl.bwfla.emil;
 import java.net.URI;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.Resource;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.json.Json;
@@ -47,8 +52,10 @@ import javax.ws.rs.core.Response;
 import com.webcohesion.enunciate.metadata.rs.TypeHint;
 import de.bwl.bwfla.api.emucomp.Component;
 import de.bwl.bwfla.api.emucomp.NetworkSwitch;
+import de.bwl.bwfla.common.services.security.AuthenticatedUser;
 import de.bwl.bwfla.common.services.security.Role;
 import de.bwl.bwfla.common.services.security.Secured;
+import de.bwl.bwfla.common.services.security.UserContext;
 import de.bwl.bwfla.common.utils.NetworkUtils;
 import de.bwl.bwfla.common.utils.TaskStack;
 import de.bwl.bwfla.emil.datatypes.rest.NodeTcpComponentRequest;
@@ -79,6 +86,13 @@ public class Networks {
     @Inject
     private Components components = null;
 
+    @Inject
+    @AuthenticatedUser
+    private UserContext authenticatedUser;
+
+    @Resource(lookup = "java:jboss/ee/concurrency/executor/io")
+    private ExecutorService executor;
+
     private Component componentWsClient = null;
     private NetworkSwitch networkSwitchWsClient = null;
 
@@ -105,7 +119,13 @@ public class Networks {
     @Consumes({ MediaType.APPLICATION_JSON })
     @Produces(MediaType.APPLICATION_JSON)
     @TypeHint(NetworkResponse.class)
-    public Response createNetwork(NetworkRequest networkRequest) {
+    public CompletionStage<Response> createNetworkAsync(NetworkRequest networkRequest) {
+        final var userctx = (authenticatedUser != null) ? authenticatedUser.clone() : null;
+        final Supplier<Response> handler = () -> this.createNetwork(networkRequest, userctx);
+        return CompletableFuture.supplyAsync(handler, executor);
+    }
+
+    public Response createNetwork(NetworkRequest networkRequest, UserContext userctx) {
         if (networkRequest.getComponents() == null) {
             throw new BadRequestException(
                     Response.status(Response.Status.BAD_REQUEST)
@@ -119,7 +139,7 @@ public class Networks {
             // a switch comes included with every network group
             final SwitchComponentRequest switchComponentRequest = new SwitchComponentRequest();
             switchComponentRequest.setConfig(new NetworkSwitchConfiguration());
-            final String switchId = components.createComponent(switchComponentRequest).getId();
+            final String switchId = components.createComponent(switchComponentRequest, userctx).getId();
             session = new NetworkSession(switchId, networkRequest);
             session.components()
                     .put(switchId, new SessionComponent(switchId));
@@ -143,7 +163,7 @@ public class Networks {
                 if (networkRequest.getNetwork() != null)
                     slirpConfig.setNetwork(networkRequest.getNetwork());
 
-                final String slirpId = components.createComponent(slirpConfig).getId();
+                final String slirpId = components.createComponent(slirpConfig, userctx).getId();
                 final var slirpUrl = this.getControlUrls(slirpId)
                         .get("ws+ethernet+" + slirpMac);
 
@@ -190,7 +210,7 @@ public class Networks {
                 final NodeTcpComponentRequest nodeComponentRequest = new NodeTcpComponentRequest();
                 nodeComponentRequest.setConfig(nodeConfig);
 
-                final var nodeTcpId = components.createComponent(nodeComponentRequest).getId();
+                final var nodeTcpId = components.createComponent(nodeComponentRequest, userctx).getId();
                 final var controlUrls = this.getControlUrls(nodeTcpId);
                 final var nodeTcpUrl = controlUrls.get("ws+ethernet+" + nodeConfig.getHwAddress());
                 this.connect(session, nodeTcpId, nodeTcpUrl.toString(), false);

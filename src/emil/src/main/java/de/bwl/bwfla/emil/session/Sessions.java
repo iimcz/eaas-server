@@ -40,6 +40,8 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.net.URI;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 
 
 @Path("/sessions")
@@ -83,7 +85,12 @@ public class Sessions
 	@DELETE
 	@Path("/{id}")
 	@Secured(roles = {Role.RESTRICTED})
-	public void delete(@PathParam("id") String id)
+	public CompletionStage<Void> deleteAsync(@PathParam("id") String id)
+	{
+		return CompletableFuture.runAsync(() -> this.delete(id));
+	}
+
+	public void delete(String id)
 	{
 		sessions.remove(id);
 	}

@@ -35,6 +35,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -297,28 +298,28 @@ public class Components {
         sessionStatsWriter.append(session);
     }
     
-    ComponentResponse createComponent(ComponentRequest request) throws WebApplicationException
+    ComponentResponse createComponent(ComponentRequest request, UserContext userctxt) throws WebApplicationException
     {
         ComponentResponse result;
 
         final TaskStack cleanups = new TaskStack(LOG);
         final List<EventObserver> observer = new ArrayList<>();
         if (request.getUserId() == null)
-            request.setUserId((authenticatedUser != null) ? authenticatedUser.getUserId() : null);
+            request.setUserId((userctxt != null) ? userctxt.getUserId() : null);
 
         if (request.getClass().equals(UviComponentRequest.class)) {
             try {
                 MachineComponentRequest machineComponentRequest = uviHelper.prepare((UviComponentRequest) request, LOG);
-                result = this.createMachineComponent(machineComponentRequest, cleanups, observer);
+                result = this.createMachineComponent(machineComponentRequest, userctxt, cleanups, observer);
             }
             catch (BWFLAException error) {
                 throw Components.newInternalError(error);
             }
         }
         else if (request.getClass().equals(MachineComponentRequest.class)) {
-            result = this.createMachineComponent((MachineComponentRequest) request, cleanups, observer);
+            result = this.createMachineComponent((MachineComponentRequest) request, userctxt, cleanups, observer);
         } else if (request.getClass().equals(ContainerComponentRequest.class)) {
-            result = this.createContainerComponent((ContainerComponentRequest) request, cleanups, observer);
+            result = this.createContainerComponent((ContainerComponentRequest) request, userctxt, cleanups, observer);
         } else if (request.getClass().equals(SwitchComponentRequest.class)) {
             result = this.createSwitchComponent((SwitchComponentRequest) request, cleanups, observer);
         } else if (request.getClass().equals(NodeTcpComponentRequest.class)) {
@@ -365,12 +366,18 @@ public class Components {
     @Secured(roles={Role.PUBLIC})
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public ComponentResponse createComponent(ComponentRequest request, @Context final HttpServletResponse response)
+    public CompletionStage<Response> createComponentAsync(ComponentRequest request)
     {
-        final ComponentResponse result = this.createComponent(request);
-        response.setStatus(Response.Status.CREATED.getStatusCode());
-        response.addHeader("Location", result.getId());
-        return result;
+        final var userctx = this.getUserContext();
+        final Supplier<Response> handler = () -> {
+            final ComponentResponse result = this.createComponent(request, userctx);
+            return Response.status(Response.Status.CREATED)
+                    .header("Location", result.getId())
+                    .entity(result)
+                    .build();
+        };
+
+        return CompletableFuture.supplyAsync(handler, executor);
     }
 
     protected ComponentResponse createSwitchComponent(SwitchComponentRequest desc, TaskStack cleanups, List<EventObserver> observer)
@@ -437,7 +444,7 @@ public class Components {
     }
 
     @Deprecated
-    protected ComponentResponse createContainerComponent(ContainerComponentRequest desc, TaskStack cleanups, List<EventObserver> observer)
+    protected ComponentResponse createContainerComponent(ContainerComponentRequest desc, UserContext userctx, TaskStack cleanups, List<EventObserver> observer)
             throws WebApplicationException
     {
         if (desc.getEnvironment() == null) {
@@ -542,8 +549,8 @@ public class Components {
             if(selectors != null && !selectors.isEmpty())
                 options.getSelectors().addAll(selectors);
 
-            if (authenticatedUser.getTenantId() != null)
-                options.setTenantId(authenticatedUser.getTenantId());
+            if (userctx.getTenantId() != null)
+                options.setTenantId(userctx.getTenantId());
 
             final String sessionId = eaas.createSessionWithOptions(chosenEnv.value(false), options);
             if (sessionId == null) {
@@ -665,7 +672,7 @@ public class Components {
                 .push(taskname, task);
     }
 
-    protected ComponentResponse createMachineComponent(MachineComponentRequest machineDescription, TaskStack cleanups, List<EventObserver> observer)
+    protected ComponentResponse createMachineComponent(MachineComponentRequest machineDescription, UserContext userctx, TaskStack cleanups, List<EventObserver> observer)
             throws WebApplicationException
     {
         if (machineDescription.getEnvironment() == null) {
@@ -676,7 +683,7 @@ public class Components {
         }
 
         try {
-            EmilEnvironment emilEnv = this.emilEnvRepo.getEmilEnvironmentById(machineDescription.getEnvironment());
+            EmilEnvironment emilEnv = this.emilEnvRepo.getEmilEnvironmentById(machineDescription.getEnvironment(), userctx);
             Environment chosenEnv = emilEnvRepo.getImageArchive()
                     .api()
                     .v2()
@@ -778,12 +785,12 @@ public class Components {
 
             Integer driveId = null;
             // hack: we need to initialize the user archive:
-            objectRepository.archives().list();
+            objectRepository.registerUserArchive(userctx);
             if (machineDescription.getObject() != null) {
-                driveId = addObjectToEnvironment(chosenEnv, machineDescription.getObjectArchive(), machineDescription.getObject());
+                driveId = addObjectToEnvironment(chosenEnv, machineDescription.getObjectArchive(), machineDescription.getObject(), userctx);
             } else if (machineDescription.getSoftware() != null) {
                 final var software = this.getSoftwarePackage(machineDescription.getSoftware());
-                driveId = addObjectToEnvironment(chosenEnv, software.getArchive(), software.getObjectId());
+                driveId = addObjectToEnvironment(chosenEnv, software.getArchive(), software.getObjectId(), userctx);
             }
 
             final List<String> selectors = resourceProviderSelection.getSelectors(chosenEnv.getId());
@@ -812,8 +819,8 @@ public class Components {
                 options.setLockEnvironment(true);
             }
 
-            if (authenticatedUser.getTenantId() != null)
-                options.setTenantId(authenticatedUser.getTenantId());
+            if (userctx.getTenantId() != null)
+                options.setTenantId(userctx.getTenantId());
 
             if(machineDescription.isHeadless())
             {
@@ -962,20 +969,20 @@ public class Components {
         return software;
     }
 
-    private String resolveObjectArchive(String archiveId)
+    private String resolveObjectArchive(String archiveId, UserContext userctx)
     {
         if(userArchiveEnabled && (archiveId == null || archiveId.equals("default")))
         {
-            if(authenticatedUser == null || authenticatedUser.getUserId() == null)
+            if (userctx == null || userctx.getUserId() == null)
                 archiveId = "default";
             else
-                archiveId = authenticatedUser.getUserId();
+                archiveId = userctx.getUserId();
         }
 
         return archiveId;
     }
 
-    protected int addObjectToEnvironment(Environment chosenEnv, String archiveId, String objectId)
+    protected int addObjectToEnvironment(Environment chosenEnv, String archiveId, String objectId, UserContext userctx)
             throws BWFLAException, JAXBException {
 
         LOG.info("adding object id: " + objectId);
@@ -984,7 +991,7 @@ public class Components {
             return EmulationEnvironmentHelper.getDriveId((MachineConfiguration)chosenEnv, objectId);
         }
 
-        archiveId = this.resolveObjectArchive(archiveId);
+        archiveId = this.resolveObjectArchive(archiveId, userctx);
         FileCollection fc = objects.getFileCollection(archiveId, objectId);
         ObjectArchiveBinding binding = new ObjectArchiveBinding(objectArchive, archiveId, objectId);
 
@@ -1625,7 +1632,13 @@ public class Components {
     @DELETE
     @Secured(roles={Role.PUBLIC})
     @Path("/{componentId}")
-    public void releaseComponent(@PathParam("componentId") String componentId) {
+    public CompletionStage<Void> releaseComponentAsync(@PathParam("componentId") String componentId)
+    {
+        return CompletableFuture.runAsync(() -> this.releaseComponent(componentId), executor);
+    }
+
+    public void releaseComponent(String componentId)
+    {
         ComponentSession session = sessions.get(componentId);
         if (session == null) {
             final Response response = Response.status(Response.Status.NOT_FOUND)
@@ -1777,6 +1790,11 @@ public class Components {
             if (tasks.execute())
                 LOG.info("Component '" + id + "' released");
             else LOG.log(Level.WARNING, "Releasing component '" + id + "' failed!");
+        }
+
+        public boolean isReleased()
+        {
+            return released.get();
         }
 
         public String getId()
@@ -2004,6 +2022,9 @@ public class Components {
         @Override
         public void run()
         {
+            if (session.isReleased())
+                return;
+
             final long curts = Components.timestamp();
             final long prevts = session.getKeepaliveTimestamp();
             final long duration = curts - session.getStartTimestamp();
