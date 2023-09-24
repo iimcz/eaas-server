@@ -19,7 +19,6 @@
 
 package de.bwl.bwfla.eaas;
 
-import java.net.URL;
 import java.time.Duration;
 import java.util.*;
 import java.util.logging.Level;
@@ -36,8 +35,6 @@ import javax.xml.bind.JAXBException;
 import javax.xml.ws.soap.MTOM;
 
 import de.bwl.bwfla.api.emucomp.Component;
-import de.bwl.bwfla.api.emucomp.ComponentService;
-import de.bwl.bwfla.api.emucomp.Machine;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.logging.PrefixLogger;
 import de.bwl.bwfla.eaas.acl.AccessControlManager;
@@ -87,8 +84,6 @@ public class EaasWS
 	private SessionRegistry sessions = null;
 
 	private static final Logger			LOG	= Logger.getLogger(EaasWS.class.getName());
-	@Deprecated
-	private static Machine			    emulatorPort;
 
 	private ResourceSpec defaultSessionSpec = null;
 
@@ -100,17 +95,6 @@ public class EaasWS
 			final Configuration config = ConfigurationProvider.getConfiguration();
 			final Configuration newconfig = ConfigHelpers.filter(config, "ws.session_resources.");
 			defaultSessionSpec = ConfigHelpers.toResourceSpec(newconfig);
-		}
-
-		try
-		{
-	        final String proxyWsdl    = eaasGw + "/eaas/ComponentProxy?wsdl";
-
-            ComponentService proxyService = new ComponentService(new URL(proxyWsdl));
-            emulatorPort = proxyService.getMachinePort();
-		}
-		catch(Exception exception) {
-			LOG.log(Level.SEVERE, exception.getMessage(), exception);
 		}
 	}
 
