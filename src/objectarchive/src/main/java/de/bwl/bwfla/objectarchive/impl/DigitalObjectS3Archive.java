@@ -32,7 +32,7 @@ import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.services.container.helpers.CdromIsoHelper;
 import de.bwl.bwfla.common.taskmanager.BlockingTask;
 import de.bwl.bwfla.common.taskmanager.TaskState;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.common.utils.METS.MetsUtil;
 import de.bwl.bwfla.emucomp.api.Binding.ResourceType;
 import de.bwl.bwfla.emucomp.api.Drive;
@@ -335,7 +335,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 				this.packFilesAsIso(o.getId(), tmpdir);
 		}
 		finally {
-			final var deleter = new DeprecatedProcessRunner("rm")
+			final var deleter = new ProcessRunner("rm")
 					.addArguments("-r", "--", tmpdir.toString())
 					.setLogger(log);
 
@@ -1055,7 +1055,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 				return false;
 			}
 
-			final var deleter = new DeprecatedProcessRunner("rm")
+			final var deleter = new ProcessRunner("rm")
 					.addArguments("-r", opath.toString())
 					.setLogger(log);
 
@@ -1071,7 +1071,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 					.reduce(true, paths, ObjectArchiveSingleton.executor());
 
 			if (uploaded) {
-				final var deleter = new DeprecatedProcessRunner("rm")
+				final var deleter = new ProcessRunner("rm")
 						.addArguments("-r", "--", basedir.toString())
 						.setLogger(log);
 

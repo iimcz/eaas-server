@@ -2,12 +2,11 @@ package de.bwl.bwfla.emucomp.api;
 
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.logging.Logger;
 
 
@@ -38,7 +37,7 @@ public class LoopDeviceManager {
 	}
 
 	private static void detach(String dev) throws BWFLAException, IOException {
-		DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		ProcessRunner process = new ProcessRunner();
 		process.setLogger(log);
 		process.setCommand("losetup");
 		process.addArguments("-d", dev);

@@ -25,7 +25,7 @@ import de.bwl.bwfla.blobstore.api.BlobHandle;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.utils.ByteRange;
 import de.bwl.bwfla.common.utils.ByteRangeIterator;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.common.utils.FileRangeIterator;
 import org.apache.tamaya.Configuration;
 import org.apache.tamaya.ConfigurationProvider;
@@ -394,7 +394,7 @@ public class FileSystemBackend implements IBlobStoreBackend
 
 	private void sync(Path path)
 	{
-		final DeprecatedProcessRunner process = new DeprecatedProcessRunner("sync");
+		final ProcessRunner process = new ProcessRunner("sync");
 		process.setLogger(log);
 		if (!process.execute())
 			log.warning("Syncing filesystem for '" + path.toString() + "' failed!");

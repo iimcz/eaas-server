@@ -1,6 +1,6 @@
 package de.bwl.bwfla.emucomp.xpra;
 
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import org.apache.tamaya.ConfigurationProvider;
 
 import java.io.IOException;
@@ -10,7 +10,7 @@ import java.util.logging.Logger;
 
 public class XpraUtils
 {
-    public static boolean startXpraSession(DeprecatedProcessRunner runner, String command, int port, Logger log)
+    public static boolean startXpraSession(ProcessRunner runner, String command, int port, Logger log)
             throws IOException
     {
         final org.apache.tamaya.Configuration config = ConfigurationProvider.getConfiguration();
@@ -30,7 +30,7 @@ public class XpraUtils
         return runner.start();
     }
 
-    public static boolean startXpraSession(DeprecatedProcessRunner runner, int port, Logger log)
+    public static boolean startXpraSession(ProcessRunner runner, int port, Logger log)
     {
         runner.setCommand("xpra");
         runner.addArgument("start");

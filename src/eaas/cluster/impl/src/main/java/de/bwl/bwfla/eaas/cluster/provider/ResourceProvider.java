@@ -37,7 +37,7 @@ import de.bwl.bwfla.common.concurrent.SequentialExecutor;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.logging.PrefixLogger;
 import de.bwl.bwfla.common.logging.PrefixLoggerContext;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.conf.CommonSingleton;
 import de.bwl.bwfla.eaas.cluster.ClusterManagerExecutors;
 import de.bwl.bwfla.eaas.cluster.MutableResourceSpec;
@@ -613,14 +613,14 @@ public class ResourceProvider implements IResourceProvider
 
 			if (config.getDomain() != null) {
 				request.setUserMetaData((String name) -> {
-					DeprecatedProcessRunner processRunner = new DeprecatedProcessRunner();
+					ProcessRunner processRunner = new ProcessRunner();
 					processRunner.setCommand(CLOUD_CONFIG_SCRIPT);
 					processRunner.addArgument(name + "." + config.getDomain());
 					processRunner.addEnvVariable("EAAS_CONFIG_PATH", CommonSingleton.configPath.toAbsolutePath().toString());
 					processRunner.redirectStdErrToStdOut(false);
 					processRunner.setLogger(log);
 					try {
-						final DeprecatedProcessRunner.Result result = processRunner.executeWithResult(true, true)
+						final ProcessRunner.Result result = processRunner.executeWithResult(true, true)
 								.orElse(null);
 
 						return (result != null && result.successful()) ? result.stdout() : null;
@@ -672,7 +672,7 @@ public class ResourceProvider implements IResourceProvider
 		if (config.getDomain() == null)
 			return;
 
-		final DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
+		final ProcessRunner runner = new ProcessRunner();
 		for (int i = 0; i < DNS_TRANSACTION_RETRIES_NUM; ++i) {
 			runner.setCommand(DNS_UNREGISTER_SCRIPT);
 			runner.addArgument(nid.getDomainName());
@@ -697,7 +697,7 @@ public class ResourceProvider implements IResourceProvider
 
 		nid.setDomainName(nid.getSubDomainName() + "." + config.getDomain());
 
-		final DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
+		final ProcessRunner runner = new ProcessRunner();
 		for (int i = 0; i < DNS_TRANSACTION_RETRIES_NUM; ++i) {
 			runner.setCommand(DNS_REGISTER_SCRIPT);
 			runner.addArgument(nid.getDomainName());

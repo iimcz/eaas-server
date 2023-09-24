@@ -10,7 +10,7 @@ import de.bwl.bwfla.common.services.net.HttpUtils;
 import de.bwl.bwfla.common.utils.ImageInformation;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 
 
 public class EmulatorUtils {
@@ -55,7 +55,7 @@ public class EmulatorUtils {
 		String resUrl = resource.getUrl();
 		// hack until qemu-img is fixed
 		if (HttpUtils.isAbsoluteUrl(resUrl)) {
-			DeprecatedProcessRunner process = new DeprecatedProcessRunner("curl");
+			ProcessRunner process = new ProcessRunner("curl");
 			if(log != null)
 				process.setLogger(log);
 			process.addArgument(resUrl);
@@ -116,7 +116,7 @@ public class EmulatorUtils {
 			}
 		}
 
-		DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		ProcessRunner process = new ProcessRunner();
 		process.setLogger(log);
 		process.setCommand("qemu-img");
 		process.addArguments("create", "-f", "qcow2");
@@ -152,7 +152,7 @@ public class EmulatorUtils {
 	public static void changeBackingFile(Path image, String backingFile, ImageInformation.QemuImageFormat backingFileFormat, Logger log)
 			throws BWFLAException
 	{
-		DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		ProcessRunner process = new ProcessRunner();
 		process.setLogger(log);
 		process.setCommand("qemu-img");
 		process.addArgument("rebase");
@@ -173,7 +173,7 @@ public class EmulatorUtils {
 	public static void convertImage(String source, Path target, ImageInformation.QemuImageFormat fmt, Logger log)
 			throws BWFLAException
 	{
-		DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		ProcessRunner process = new ProcessRunner();
 		process.setLogger(log);
 		process.setCommand("qemu-img");
 		process.addArguments("convert");

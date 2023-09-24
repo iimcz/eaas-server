@@ -4,7 +4,6 @@ import de.bwl.bwfla.common.datatypes.QemuImage;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.services.net.HttpUtils;
 
-import javax.xml.bind.JAXBException;
 import java.io.IOException;
 import java.util.logging.Logger;
 
@@ -31,14 +30,14 @@ public class ImageInformation {
     }
 
     public ImageInformation(String imageFile, Logger log) throws IOException, BWFLAException {
-        DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+        ProcessRunner process = new ProcessRunner();
         process.setCommand("qemu-img");
         process.addArguments("info");
         process.addArguments("--output", "json");
         process.addArgument(imageFile);
         process.setLogger(log);
 
-        final DeprecatedProcessRunner.Result result = process.executeWithResult()
+        final ProcessRunner.Result result = process.executeWithResult()
                 .orElse(null);
 
         if (result == null || !result.successful())

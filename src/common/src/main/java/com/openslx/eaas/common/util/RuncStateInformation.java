@@ -1,17 +1,11 @@
 package com.openslx.eaas.common.util;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openslx.eaas.common.databind.DataUtils;
-import com.openslx.eaas.common.databind.JsonDataUtils;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner.Result;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 
-import java.io.IOException;
-import java.util.Optional;
 
 /*
 This class contains information that is returned when 'runc state {ID}' is executed. For more detailed information visit
@@ -133,7 +127,7 @@ public class RuncStateInformation
 		String output = null;
 
 		try {
-			final var runcListRunner = new DeprecatedProcessRunner("sudo")
+			final var runcListRunner = new ProcessRunner("sudo")
 					.addArguments("runc", "state", "--", componentId);
 
 			final var result = runcListRunner.executeWithResult(true).get();

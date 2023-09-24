@@ -24,7 +24,7 @@ import com.sun.jna.LastErrorException;
 import com.sun.jna.Native;
 import com.sun.jna.Platform;
 import de.bwl.bwfla.common.services.sse.EventSink;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.emucomp.api.PrintJob;
 import de.bwl.bwfla.emucomp.components.AbstractEaasComponent;
 
@@ -374,7 +374,7 @@ public class PostScriptPrinter implements Runnable
 	{
 		private final Logger log;
 		private final Path output;
-		private final DeprecatedProcessRunner ps2pdf;
+		private final ProcessRunner ps2pdf;
 		private final Writer writer;
 		private long numBytesProcessed;
 
@@ -384,7 +384,7 @@ public class PostScriptPrinter implements Runnable
 			this.output = output;
 			this.numBytesProcessed = 0L;
 
-			this.ps2pdf = new DeprecatedProcessRunner("ps2pdf");
+			this.ps2pdf = new ProcessRunner("ps2pdf");
 			ps2pdf.addArguments("-", output.toString());
 			ps2pdf.setLogger(log);
 			if (!ps2pdf.start())

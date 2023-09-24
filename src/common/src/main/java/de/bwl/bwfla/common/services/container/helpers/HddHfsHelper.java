@@ -30,7 +30,7 @@ import org.apache.commons.io.FileUtils;
 
 import de.bwl.bwfla.common.services.container.types.Container;
 import de.bwl.bwfla.common.services.container.types.HddHfsContainer;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.conf.CommonSingleton;
 
 
@@ -88,7 +88,7 @@ public class HddHfsHelper extends ContainerHelper
 		{
 			hddFile = File.createTempFile("/hdd_", ".img");
 			hddFile.delete();
-			DeprecatedProcessRunner runner = new DeprecatedProcessRunner(this.createScript.toString());
+			ProcessRunner runner = new ProcessRunner(this.createScript.toString());
 			runner.addArgument(String.valueOf(size));
 			runner.addArgument(hddFile.toString());
 			success = runner.execute();
@@ -119,7 +119,7 @@ public class HddHfsHelper extends ContainerHelper
 		
 		for(File file: files)
 		{
-			DeprecatedProcessRunner runner = new DeprecatedProcessRunner(this.ioScript.toString());
+			ProcessRunner runner = new ProcessRunner(this.ioScript.toString());
 			runner.addArgument("i");
 			runner.addArgument(container.getFile().getAbsolutePath());
 			runner.addArgument(file.getAbsolutePath());
@@ -145,7 +145,7 @@ public class HddHfsHelper extends ContainerHelper
 		{
             result = Files.createTempDirectory("").toFile();
  
-			DeprecatedProcessRunner runner = new DeprecatedProcessRunner(this.ioScript.toString());
+			ProcessRunner runner = new ProcessRunner(this.ioScript.toString());
 			runner.addArgument("e");
 			runner.addArgument(container.getFile().getAbsolutePath());
 			runner.addArgument(result.getAbsolutePath());

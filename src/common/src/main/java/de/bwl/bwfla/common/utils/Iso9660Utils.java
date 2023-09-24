@@ -49,7 +49,7 @@ public class Iso9660Utils {
 			throw new FileNotFoundException(mountpoint.toString());
 		}
 
-		DeprecatedProcessRunner proc = new DeprecatedProcessRunner("fuseiso");
+		ProcessRunner proc = new ProcessRunner("fuseiso");
 		proc.addArguments(isoFile.toString(), mountpoint.toString());
 		if (!proc.execute()) {
 			throw new IOException("Could not mount file.");
@@ -65,7 +65,7 @@ public class Iso9660Utils {
 			throw new FileNotFoundException(mountpoint.toString());
 		}
 
-		DeprecatedProcessRunner proc = new DeprecatedProcessRunner("fusermount");
+		ProcessRunner proc = new ProcessRunner("fusermount");
 		proc.addArguments("-u", mountpoint.toString());
 		if (!proc.execute()) {
 			throw new IOException("Could not unmount file.");
@@ -90,7 +90,7 @@ public class Iso9660Utils {
 			paths.append(path.toString()).append(newline);
 		}
 		
-		DeprecatedProcessRunner proc = new DeprecatedProcessRunner(MKISOFS_BIN);
+		ProcessRunner proc = new ProcessRunner(MKISOFS_BIN);
 		proc.addArguments("-o", isoFile.toString(),
 				          "-graft-points",
 				          "-path-list", "-",

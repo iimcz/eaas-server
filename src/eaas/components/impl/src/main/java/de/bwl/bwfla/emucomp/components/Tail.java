@@ -1,20 +1,20 @@
 package de.bwl.bwfla.emucomp.components;
 
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 
 import java.io.IOException;
 import java.io.InputStream;
 
 public class Tail {
 
-    private DeprecatedProcessRunner tailProcess;
+    private ProcessRunner tailProcess;
     final private String file;
 
     public Tail(String file)
     {
         this.file = file;
 
-        tailProcess = new DeprecatedProcessRunner("tail");
+        tailProcess = new ProcessRunner("tail");
         tailProcess.addArguments("-f", "-c", "+0");
         tailProcess.addArgument(file);
         tailProcess.start(false);

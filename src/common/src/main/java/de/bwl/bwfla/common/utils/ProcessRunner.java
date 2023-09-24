@@ -1,541 +1,1062 @@
+/*
+ * This file is part of the Emulation-as-a-Service framework.
+ *
+ * The Emulation-as-a-Service framework is free software: you can
+ * redistribute it and/or modify it under the terms of the GNU General
+ * Public License as published by the Free Software Foundation, either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * The Emulation-as-a-Service framework is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY; without even the
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+ * PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with the Emulation-as-a-Software framework.
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package de.bwl.bwfla.common.utils;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InterruptedIOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.RandomAccessFile;
-import java.lang.reflect.Field;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
+import java.io.OutputStreamWriter;
+import java.io.Reader;
+import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.util.ArrayList;
+import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import de.bwl.bwfla.conf.CommonSingleton;
+
+
 /**
- * A wrapper around Process which combines features of ProcessBuilder.
+ * Native command executor, based on {@link ProcessBuilder}.
+ * <p/>
  * 
- * ProcessRunner is a subclass of Process itself and is completely compatible
- * with the Process API. You can read up the Process javadoc to learn how to use
- * a Process. In addition, it implements features of a ProcessBuilder, e.g. it
- * is possible to start the Process from the ProcessRunner class and to add
- * command line arguments.
- * 
- * Due to the combination of ProcessBuilder and Process, some methods can only
- * be called if the process is already started. If these methods are called
- * before the process was started, an IllegalThreadStateException is thrown (in
- * the spirit of Process.exitValue()).
- * 
- * The InputStreams returned by getInputStream() and getErrorStream() are
- * unique, meaning that those methods can be invoked multiple times and all
- * returned streams can be read from independently (even concurrently).
- * 
- * Thread safety: With the exception of the mentioned InputStreams, this class
- * is not more thread-safe than Process or ProcessBuilder. Simultaneous access
- * from two threads without synchronization will probably result in strange
- * behaviour. This is also the case for the process' OutputStream!
- * 
- * Implementation note: When the process is started, its two output streams
- * (stdout and stderr) are redirected to a temporary file which is immediately
- * deleted. As POSIX guarantees that files remain accessible as long as there is
- * an open file handle, two instances of RandomAccessFile are created and stored
- * for the whole lifetime of the ProcessRunner instance. This allows to access
- * the process' output streams even after the process has terminated without
- * storing the complete output in memory.
- * 
- * This also makes it necessary to release this permanent resource. Hence,
- * ProcessRunner also implements AutoClosable interface. You should always call
- * close() when you are finished with the process or, better yet, use a
- * try-with-statement.
- * 
- * @author Thomas Liebetraut
+ * <b>NOTE:</b> This implementation currently only works with Linux-based systems!
  */
-public class ProcessRunner extends Process implements AutoCloseable {
-    private final String tempfilePrefix = "eaas-processrunner-";
+public class ProcessRunner
+{
+	/** Logger instance. */
+	private Logger log = Logger.getLogger(ProcessRunner.class.getName());
 
-    Logger log = Logger.getLogger(this.getClass().getName());
+	// Member fields
+	private final StringBuilder sbuilder;
+	private final Map<String, String> environment;
+	private final List<String> command;
+	private Process process;
+	private ProcessMonitor monitor;
+	private ProcessOutput stdout;
+	private ProcessOutput stderr;
+	private boolean redirectStdErrToStdOut = false;
+	private int pid;
+	private Path workdir;
+	private Path outdir;
+	private final AtomicInteger numWaitingCallers;
+	private volatile State state;
 
-    private ProcessBuilder processBuilder = new ProcessBuilder();
-    private Process process = null;
+	/** Internal states */
+	private enum State
+	{
+		INVALID,
+		READY,
+		STARTED,
+		STOPPED
+	}
 
-    private RandomAccessFile stdout = null;
-    private RandomAccessFile stderr = null;
+	/** PID, representing an invalid process. */
+	private static final int INVALID_PID = -1;
 
-    public ProcessRunner() {
-        this(new ArrayList<Object>());
-    }
+	/** Default capacity of the command-builder. */
+	private static final int DEFAULT_CMDBUILDER_CAPACITY = 32;
 
-    public ProcessRunner(Object... cmd) {
-        this(Arrays.asList(cmd));
-    }
+	/** Exception's message */
+	private static final String MESSAGE_IOSTREAM_NOT_AVAILABLE = "IO-stream is not available. Process was not started properly!";
 
-    public ProcessRunner(List<Object> cmd) {
-        processBuilder.command(cmd.stream().map(Object::toString)
-                .collect(Collectors.toList()));
-    }
+	/**
+	 * Regex for checking validity of environment variable names, which must match
+	 * <a href="https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html#tag_18_10_02">ASSIGNMENT_WORD</a>.
+	 */
+	private static final Predicate<String> ENVIRONMENT_VARNAME_MATCHER = Pattern.compile("^[a-zA-Z_][a-zA-Z_0-9]*$")
+			.asMatchPredicate();
 
-    public List<String> command() {
-        return processBuilder.command();
-    }
-
-    public ProcessRunner command(Object... cmd) {
-        return this.command(Arrays.asList(cmd));
-    }
-
-    public ProcessRunner command(List<Object> cmd) {
-        processBuilder.command(cmd.stream().map(Object::toString)
-                .collect(Collectors.toList()));
-        return this;
-    }
-
-    public ProcessRunner addArguments(Object... args) {
-        return this.addArguments(Arrays.asList(args));
-    }
+	// Initialize the constants from property file
+	private static final Path PROPERTY_TMPDIR_BASE = Paths.get(CommonSingleton.runnerConf.tmpBaseDir);
+	private static final String PROPERTY_TMPDIR_PREFIX = CommonSingleton.runnerConf.tmpdirPrefix;
+	private static final String PROPERTY_STDOUT_FILENAME = CommonSingleton.runnerConf.stdoutFilename;
+	private static final String PROPERTY_STDERR_FILENAME = CommonSingleton.runnerConf.stderrFilename;
 
 
-    public ProcessRunner addArguments(List<Object> args) {
-        processBuilder.command().addAll(args.stream().map(Object::toString)
-                .collect(Collectors.toList()));
-        return this;
-    }
+	/** Create a new ProcessRunner. */
+	public ProcessRunner()
+	{
+		this(DEFAULT_CMDBUILDER_CAPACITY);
+	}
 
-    public ProcessRunner setEnvironmentVariables(
-            Map<String, String> environment) {
-        this.processBuilder.environment().putAll(environment);
-        return this;
-    }
+	/** Create a new ProcessRunner. */
+	public ProcessRunner(int cmdCapacity)
+	{
+		this.sbuilder = new StringBuilder(1024);
+		this.environment = new HashMap<String, String>();
+		this.command = new ArrayList<String>(cmdCapacity);
+		this.numWaitingCallers = new AtomicInteger(0);
 
-    public ProcessRunner setEnvironmentVariable(String name, String value) {
-        this.processBuilder.environment().put(name, value);
-        return this;
-    }
+		this.reset(true);
+	}
 
-    public ProcessRunner setWorkingDirectory(Path cwd) {
-        processBuilder.directory(cwd.toFile());
-        return this;
-    }
+	/** Create a new ProcessRunner with the specified command. */
+	public ProcessRunner(String cmd)
+	{
+		this(DEFAULT_CMDBUILDER_CAPACITY);
+		this.setCommand(cmd, true);
+	}
 
-    /** Returns the current command as string. */
-    public String getCommandString()
-    {
-        final List<String> command = this.command();
-        if (command.isEmpty())
-            return "";
+	/** Creates a new ProcessRunner piping ...runners together using /bin/sh. */
+	public static ProcessRunner pipe(ProcessRunner... runners)
+	{
+		return ProcessRunner.pipe(Arrays.asList(runners));
+	}
 
-        final StringBuilder sbuilder = new StringBuilder(512);
-        for (String arg : command) {
-            sbuilder.append(arg);
-            sbuilder.append(' ');
-        }
+	/** Creates a new ProcessRunner piping ...runners together using /bin/sh. */
+	public static ProcessRunner pipe(Collection<ProcessRunner> runners)
+	{
+		final String args = runners.stream()
+				.map(ProcessRunner::getCommandStringWithEnv)
+				.collect(Collectors.joining(" | "));
 
-        final int last = sbuilder.length() - 1;
-        return sbuilder.substring(0, last);
-    }
+		return new ProcessRunner("/bin/sh")
+				.addArgument("-c")
+				.addArgument(args);
+	}
 
-    /**
-     * Get the Unix pid of this process.
-     * 
-     * @return The process' Unix process id
-     * @throws IllegalThreadStateException if the thread is not running
-     * @throws RuntimeException if there is a severe error in how the JVM works
-     * @throws IllegalArgumentException if we are not running natively on a Unix
-     *             system
-     */
-    public int getProcessId() throws IllegalThreadStateException {
-        if (process == null) {
-            throw new IllegalThreadStateException("Process is not running");
-        }
+	/** Set a new logger. */
+	public ProcessRunner setLogger(Logger log)
+	{
+		if(log != null)
+			this.log = log;
+		return this;
+	}
 
-        if (process.getClass().getName().equals("java.lang.UNIXProcess")) {
-            try {
-                Class<? extends Process> proc = process.getClass();
-                Field field = proc.getDeclaredField("pid");
-                field.setAccessible(true);
-                Object pid = field.get(process);
-                return (Integer) pid;
-            } catch (NoSuchFieldException e) {
-                // We already checked the class instance, so this exception
-                // can only occur if there is fundamental change in how
-                // the JDK works. In this case, this code is obsolete, anyway.
-                // Therefore, ignore this exception
-            } catch (IllegalAccessException e) {
-                // We set the field to visible, so this exception can only
-                // occur if there is fundamental change in how the JDK works.
-                // In this case, this code is obsolete, anyway.
-                // Therefore, ignore this exception
-            }
-            throw new RuntimeException(
-                    "Not able to get the pid of a UNIXProcess. Did you update your JVM? Please re-evaluate how to get the process id of a java.lang.Process.");
-        } else {
-            throw new IllegalArgumentException(
-                    "Process is not a java.lang.UNIXProcess");
-        }
-    }
+	/** Define a new command, resetting this runner. */
+	public ProcessRunner setCommand(String cmd)
+	{
+		return this.setCommand(cmd, false);
+	}
 
-    public int run() throws IOException, InterruptedException {
-        this.start();
-        return this.waitFor();
-    }
-    
-    /**
-     * Tries to run() the process, ignoring any client error that might occur.
-     * If you need to determine the reason why the process did *not* run
-     * successfully, you should use run() instead.
-     * 
-     * @return the exit code of the process or 1 for any internal error
-     */
-    public int tryRun() {
-        try {
-            this.start();
-            return this.waitFor();
-        } catch (IOException | IllegalThreadStateException ignore) {
-        } catch (InterruptedException e) {
-            // we were asked to interrupt the current operation altogether
-            this.destroyForcibly();
-        }
-        return 1;
-    }
+	/**
+	 * Define a new command to run in a subprocess.
+	 * @param cmd The new command to execute.
+	 * @param keepenv If true, then the current environment variables will be reused, else cleared.
+	 */
+	public ProcessRunner setCommand(String cmd, boolean keepenv)
+	{
+		ProcessRunner.ensureNotEmpty(cmd);
 
-    public void stop() {
-        this.process.destroy();
-    }
+		if (state != State.INVALID)
+			throw new IllegalStateException("ProcessRunner was not stopped/cleaned correctly!");
 
-    public void kill() {
-        this.process.destroyForcibly();
-    }
+		this.reset(keepenv);
+		command.add(cmd);
 
-    public boolean isAlive() throws IllegalThreadStateException {
-        if (process == null) {
-            throw new IllegalThreadStateException("Process is not created yet");
-        }
+		state = State.READY;
+		return this;
+	}
 
-        return this.process.isAlive();
-    }
+	/**
+	 * Add a new argument to current command, separated by a space.
+	 * @param arg The argument to add.
+	 */
+	public ProcessRunner addArgument(String arg)
+	{
+		ProcessRunner.ensureNotNull(arg);
+		this.ensureStateReady();
+		command.add(arg);
+		return this;
+	}
 
-    public void start() throws NullPointerException, IndexOutOfBoundsException,
-            SecurityException, IOException {
-        File stdoutFile = null;
-        File stderrFile = null;
-        try {
-            stdoutFile = Files
-                    .createTempFile(tempfilePrefix, "-stdout")
-                    .toFile();
-            stderrFile = Files
-                    .createTempFile(tempfilePrefix, "-stderr")
-                    .toFile();
+	/**
+	 * Compose a new argument from multiple values and add it to current command.
+	 * @param values The values to build the argument from.
+	 */
+	public ProcessRunner addArgument(String... values)
+	{
+		this.ensureStateReady();
 
-            this.processBuilder.redirectOutput(stdoutFile);
-            this.processBuilder.redirectError(stderrFile);
+		sbuilder.setLength(0);
+		for (String value : values) {
+			ProcessRunner.ensureNotNull(value);
+			sbuilder.append(value);
+		}
 
-            final Logger log = Logger.getLogger(this.getClass().getName());
-            log.info("Starting subprocess:  " + this.getCommandString());
-            this.process = processBuilder.start();
+		command.add(sbuilder.toString());
+		return this;
+	}
 
-            this.stdout = new RandomAccessFile(stdoutFile, "r");
-            this.stderr = new RandomAccessFile(stderrFile, "r");
-        }
-        catch (Throwable error) {
-            log.log(Level.SEVERE, error.getMessage(), error);
-            throw error;
-        }
-        finally {
-            if (stdoutFile != null) {
-                Files.delete(stdoutFile.toPath());
-            }
-            if (stderrFile != null) {
-                Files.delete(stderrFile.toPath());
-            }
-        }
-    }
+	/**
+	 * Append a new argument's value to last argument.
+	 * @param value The argument's value to add.
+	 */
+	public ProcessRunner addArgValue(String value)
+	{
+		ProcessRunner.ensureNotNull(value);
+		this.ensureStateReady();
 
-    @Override
-    public int exitValue() throws IllegalThreadStateException {
-        if (this.process == null) {
-            throw new IllegalThreadStateException("Process is not created yet");
-        }
-        return this.process.exitValue();
-    }
+		final int index = command.size() - 1;
+		String argument = command.get(index);
+		command.set(index, argument + value);
+		return this;
+	}
 
-    @Override
-    public InputStream getErrorStream() {
-        return new ProcessInputStream(this.stderr, this.process);
-    }
+	/**
+	 * Append new argument's values to last argument.
+	 * @param values The argument's values to add.
+	 */
+	public ProcessRunner addArgValues(String... values)
+	{
+		this.ensureStateReady();
 
-    @Override
-    public InputStream getInputStream() {
-        return new ProcessInputStream(this.stdout, this.process);
-    }
+		sbuilder.setLength(0);
+		for (String value : values) {
+			ProcessRunner.ensureNotNull(value);
+			sbuilder.append(value);
+		}
 
-    @Override
-    public OutputStream getOutputStream() {
-        return this.process.getOutputStream();
-    }
+		final int index = command.size() - 1;
+		String argument = command.get(index);
+		argument += sbuilder.toString();
+		command.set(index, argument);
+		return this;
+	}
 
-    public InputStream getStderrStream() {
-        return this.getErrorStream();
-    }
+	/**
+	 * Add all arguments from the specified list to current command.
+	 * @param args The arguments to add.
+	 */
+	public ProcessRunner addArguments(String... args)
+	{
+		return this.addArguments(Arrays.asList(args));
+	}
 
-    public InputStream getStdoutStream() {
-        return this.getInputStream();
-    }
+	/**
+	 * Add all arguments from the specified list to current command.
+	 * @param args The arguments to add.
+	 */
+	public ProcessRunner addArguments(List<String> args)
+	{
+		this.ensureStateReady();
 
-    public OutputStream getStdinStream() {
-        return this.getOutputStream();
-    }
+		for (String arg : args) {
+			ProcessRunner.ensureNotNull(arg);
+			command.add(arg);
+		}
 
-    public String getStdoutString(Charset charset) throws IOException {
-        this.stdout.seek(0);
-        ByteArrayOutputStream result = new ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-        int length;
-        InputStream is = this.getInputStream();
-        while ((length = is.read(buffer)) != -1) {
-            result.write(buffer, 0, length);
-        }
-        return result.toString(charset.name());
-    }
+		return this;
+	}
 
-    public String getStdoutString() throws IOException {
-        return getStdoutString(StandardCharsets.UTF_8);
-    }
+	/**
+	 * Add a new environment-variable to current command.
+	 * @param var The variable's name.
+	 * @param value The variable's value.
+	 */
+	public ProcessRunner addEnvVariable(String var, String value)
+	{
+		ProcessRunner.ensureNotEmpty(var);
+		ProcessRunner.ensureValidEnvVarName(var);
+		ProcessRunner.ensureNotNull(value, "Value for environment variable " + var + " is null.");
+		environment.put(var, value);
+		return this;
+	}
 
-    public String getStderrString(Charset charset) throws IOException {
-        this.stderr.seek(0);
 
-        ByteArrayOutputStream result = new ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-        int length;
-        InputStream is = this.getErrorStream();
-        while ((length = is.read(buffer)) != -1) {
-            result.write(buffer, 0, length);
-        }
-        return result.toString(charset.name());
-    }
+	/**
+	 * Add all environment-variables to current command.
+	 * @param vars The variables to add.
+	 */
+	public ProcessRunner addEnvVariables(Map<String, String> vars)
+	{
+		vars.forEach(this::addEnvVariable);
+		return this;
+	}
 
-    public String getStderrString() throws IOException {
-        return getStderrString(StandardCharsets.UTF_8);
-    }
+	/** Returns the environment variables of the current command. */
+	public Map<String, String> getEnvVariables()
+	{
+		return environment;
+	}
 
-    @Override
-    public int waitFor()
-            throws InterruptedException, IllegalThreadStateException {
-        if (process == null) {
-            throw new IllegalThreadStateException("Process is not created yet");
-        }
+	/** Returns the current command. */
+	public List<String> getCommand()
+	{
+		return command;
+	}
 
-        return this.process.waitFor();
-    }
+	/** Quotes a single argument for shell use. */
+	static private String quoteArg(String arg) {
+		return "'" + arg.replace("'", "'\\''") + "'";
+	}
 
-    @Override
-    public boolean waitFor(long timeout, TimeUnit unit)
-            throws InterruptedException, IllegalThreadStateException {
-        if (process == null) {
-            throw new IllegalThreadStateException("Process is not created yet");
-        }
+	/** Returns the current command as string in shell syntax. */
+	public String getCommandString()
+	{
+		if (command.isEmpty())
+			return "";
 
-        return this.process.waitFor(timeout, unit);
-    }
+		sbuilder.setLength(0);
+		for (String arg : command) {
+			sbuilder.append(quoteArg(arg));
+			sbuilder.append(' ');
+		}
 
-    public boolean waitFor(Duration duration)
-            throws InterruptedException, IllegalThreadStateException {
-        return this.waitFor(duration.toMillis(), TimeUnit.MILLISECONDS);
-    }
+		int last = sbuilder.length() - 1;
+		return sbuilder.substring(0, last);
+	}
 
-    /**
-     * Just a quick reminder that this method does NOT release all resources.
-     * 
-     * @see close()
-     */
-    @Override
-    public void destroy() {
-        this.process.destroy();
-    }
+	/** Returns the current environment variables as string in shell syntax. */
+	public String getEnvString()
+	{
+		StringBuilder builder = new StringBuilder(1024);
+		if(environment.entrySet().isEmpty())
+			return "";
 
-    @Override
-    public Process destroyForcibly() {
-        return this.process.destroyForcibly();
-    }
+		for (Map.Entry<String, String> entry : environment.entrySet()) {
+			final String key = entry.getKey();
+			final String value = entry.getValue();
 
-    /**
-     * Closes this resource, relinquishing any underlying resources. This method
-     * is invoked automatically on objects managed by the try-with-resources
-     * statement.
-     */
-    @Override
-    public void close() {
-        try {
-            this.destroyForcibly();
-        } catch (Exception e) {
-        }
-        try {
-            this.stdout.close();
-        } catch (Exception e) {
-        }
-        try {
-            this.stderr.close();
-        } catch (Exception e) {
-        }
-    }
+			ProcessRunner.ensureValidEnvVarName(key);
 
-    private class ProcessInputStream extends InputStream {
-        private static final int DEFAULT_DELAY_MILLIS = 100;
+			builder.append(key);
+			builder.append("=");
+			builder.append(quoteArg(value));
+			builder.append(" ");
+		}
 
-        private final RandomAccessFile backingFile;
-        private final Process process;
-        private int pos = 0;
+		int last = builder.length() - 1;
+		return builder.substring(0, last);
+	}
 
-        public ProcessInputStream(RandomAccessFile backingFile,
-                Process process) {
-            super();
-            this.backingFile = backingFile;
-            this.process = process;
-        }
+	/** Returns the current command including environment variables as string in shell syntax. */
+	public String getCommandStringWithEnv()
+	{
+		final String env = this.getEnvString();
+		final String command = this.getCommandString();
+		return env + (env.length() > 0 ? " " : "") + command;
+	}
 
-        private void waitForData() throws IOException {
-            while (process.isAlive() && this.available() == 0) {
-                try {
-                    Thread.sleep(DEFAULT_DELAY_MILLIS);
-                } catch (InterruptedException e) {
-                    throw new InterruptedIOException();
-                }
-            }
-        }
+	/** Returns the monitor for the running subprocess. */
+	public ProcessMonitor getProcessMonitor()
+	{
+		if (state != State.STARTED)
+			throw new IllegalStateException("Monitor is not available. Process was not started properly!");
 
-        @Override
-        public int available() throws IOException {
-            try {
-                long available = this.backingFile.length() - this.pos;
-                if (available <= Integer.MAX_VALUE) {
-                    return (int) available;
-                } else {
-                    throw new ArithmeticException();
-                }
-            } catch (java.nio.channels.ClosedChannelException e) {
-                return 0;
-            }
-        }
+		if (monitor == null) {
+			try {
+				// Try to create the monitor
+				monitor = new ProcessMonitor(pid);
+			}
+			catch (FileNotFoundException e) {
+				// Likely the process was already terminated!
+				log.warning("Creating monitor for subprocess " + pid + " failed!");
+			}
+		}
 
-        @Override
-        public int read() throws IOException {
-            waitForData();
+		return monitor;
+	}
 
-            // waitForData() terminates on two conditions
-            // - there is data in the buffer
-            // - the process has terminated and there is no more data
+	/**
+	 * The directory to be used as working directory.
+	 * If not set, uses the dir of the current process.
+	 * @param dir The new working directory.
+	 */
+	public ProcessRunner setWorkingDirectory(Path dir)
+	{
+		this.ensureStateReady();
+		workdir = dir;
+		return this;
+	}
 
-            // in both cases we can invoke super.read() because it will return
-            // -1 (EOF) on the (empty) stream in the second case
-            synchronized (this.backingFile) {
-                this.backingFile.seek(this.pos);
-                int result = this.backingFile.read();
-                if (result >= 0) {
-                    this.pos += result;
-                }
-                return result;
-            }
-        }
+	/** Redirect the stderr of the process to stdout. */
+	public ProcessRunner redirectStdErrToStdOut(boolean redirect)
+	{
+		this.redirectStdErrToStdOut = redirect;
+		return this;
+	}
 
-        @Override
-        public int read(byte[] b, int off, int len) throws IOException {
+	/** Returns the stdin of the process, as byte-stream. */
+	public OutputStream getStdInStream() throws IOException
+	{
+		if (!(state == State.STARTED || state == State.STOPPED))
+			throw new IllegalStateException();
 
-            // This input argument check is taken from JDK's InputStream.java
-            if (b == null) {
-                throw new NullPointerException();
-            } else if (off < 0 || len < 0 || len > b.length - off) {
-                throw new IndexOutOfBoundsException();
-            } else if (len == 0) {
-                return 0;
-            }
+		ProcessRunner.ensureNotNull(process, MESSAGE_IOSTREAM_NOT_AVAILABLE);
+		return process.getOutputStream();
+	}
 
-            waitForData();
+	/** Returns the stdin of the process, as char-stream. */
+	public Writer getStdInWriter() throws IOException
+	{
+		OutputStream stream = this.getStdInStream();
+		return new OutputStreamWriter(stream);
+	}
 
-            // waitForData() terminates on two conditions
-            // - there is data in the buffer
-            // - the process has terminated and there is no more data
+	/**
+	 * Write a string to stdin of the subprocess. <p/>
+	 * <b>NOTE:</b>
+	 *     For writing multiple messages it is more efficient to get the writer
+	 *     returned by {@link #getStdInWriter()} once and write to it directly!
+	 *
+	 * @param message The data to write.
+	 */
+	public ProcessRunner writeToStdIn(String message) throws IOException
+	{
+		Writer writer = this.getStdInWriter();
+		writer.write(message);
+		writer.flush();
+		return this;
+	}
 
-            // in both cases we can invoke super.read(byte[], int, int) because
-            // it will return -1 (EOF) on the (empty) stream in the second case
+	/** Returns the stdout of the process, as byte-stream. */
+	public InputStream getStdOutStream() throws IOException
+	{
+		ProcessRunner.ensureNotNull(stdout, MESSAGE_IOSTREAM_NOT_AVAILABLE);
+		return stdout.stream();
+	}
 
-            synchronized (this.backingFile) {
-                this.backingFile.seek(this.pos);
-                int read = this.backingFile.read(b, off, len);
-                if (read >= 0) {
-                    this.pos += read;
-                }
-                return read;
-            }
-        }
-    }
-    
-//  private class ProcessInputStream extends FilterInputStream {
-//  private static final int DEFAULT_DELAY_MILLIS = 500;
-//
-//  private Process process;
-//
-//  public ProcessInputStream(FileInputStream backingFile, Process process)
-//          throws IOException {
-//      super(backingFile);
-//      this.process = process;
-//  }
-//
-//  /*
-//   * @return True if there really is data to be read, false if the process
-//   * has terminated without data
-//   */
-//  private void waitForData() throws IOException {
-//      while (this.available() == 0 && process.isAlive()) {
-//          try {
-//              Thread.sleep(DEFAULT_DELAY_MILLIS);
-//          } catch (InterruptedException e) {
-//              throw new InterruptedIOException();
-//          }
-//      }
-//  }
-//
-//  @Override
-//  public int read() throws IOException {
-//      waitForData();
-//
-//      // waitForData() terminates on two conditions
-//      // - there is data in the buffer
-//      // - the process has terminated and there is no more data
-//
-//      // in both cases we can invoke super.read() because it will return
-//      // -1 (EOF) on the (empty) stream in the second case
-//      return super.read();
-//  }
-//
-//  @Override
-//  public int read(byte[] b, int off, int len) throws IOException {
-//      // This input argument check is taken from JDK's InputStream.java
-//      if (b == null) {
-//          throw new NullPointerException();
-//      } else if (off < 0 || len < 0 || len > b.length - off) {
-//          throw new IndexOutOfBoundsException();
-//      } else if (len == 0) {
-//          return 0;
-//      }
-//
-//      waitForData();
-//
-//      // waitForData() terminates on two conditions
-//      // - there is data in the buffer
-//      // - the process has terminated and there is no more data
-//
-//      // in both cases we can invoke super.read(byte[], int, int) because
-//      // it will return -1 (EOF) on the (empty) stream in the second case
-//
-//      return super.read(b, off, len);
-//  }
-//}
+	/** Returns the stdout of the process, as char-stream. */
+	public Reader getStdOutReader() throws IOException
+	{
+		ProcessRunner.ensureNotNull(stdout, MESSAGE_IOSTREAM_NOT_AVAILABLE);
+		return stdout.reader();
+	}
+
+	/** Returns the stdout of the process, as string. */
+	public String getStdOutString() throws IOException
+	{
+		ProcessRunner.ensureNotNull(stdout, MESSAGE_IOSTREAM_NOT_AVAILABLE);
+		return stdout.string();
+	}
+
+	/** Returns the path to file containing stdout of the process. */
+	public Path getStdOutPath()
+	{
+		ProcessRunner.ensureNotNull(stdout, MESSAGE_IOSTREAM_NOT_AVAILABLE);
+		return stdout.path();
+	}
+
+	/** Returns the stderr of the process, as byte-stream. */
+	public InputStream getStdErrStream() throws IOException
+	{
+		ProcessRunner.ensureNotNull(stderr, MESSAGE_IOSTREAM_NOT_AVAILABLE);
+		return stderr.stream();
+	}
+
+	/** Returns the stderr of the process, as char-stream. */
+	public Reader getStdErrReader() throws IOException
+	{
+		ProcessRunner.ensureNotNull(stderr, MESSAGE_IOSTREAM_NOT_AVAILABLE);
+		return stderr.reader();
+	}
+
+	/** Returns the stderr of the process, as string. */
+	public String getStdErrString() throws IOException
+	{
+		ProcessRunner.ensureNotNull(stderr, MESSAGE_IOSTREAM_NOT_AVAILABLE);
+		return stderr.string();
+	}
+
+	/** Returns the path to file containing stderr of the process. */
+	public Path getStdErrPath()
+	{
+		ProcessRunner.ensureNotNull(stderr, MESSAGE_IOSTREAM_NOT_AVAILABLE);
+		return stderr.path();
+	}
+
+	/** Print the stdout of the process to the log. */
+	public ProcessRunner printStdOut()
+	{
+		// Print stdout, if available
+		try
+		{
+			String output = this.getStdOutString();
+			this.printStdOut(output);
+		}
+		catch(IOException error) {
+			log.log(Level.WARNING, "Printing process-runner's stdout failed!", error);
+		}
+
+		return this;
+	}
+
+	/** Print the stderr of the process to the log. */
+	public ProcessRunner printStdErr()
+	{
+		try
+		{
+			// Print stderr, if available
+			String output = this.getStdErrString();
+			this.printStdErr(output);
+		}
+		catch(IOException error) {
+			log.log(Level.WARNING, "Printing process-runner's stderr failed!", error);
+		}
+
+		return this;
+	}
+
+	/**
+	 * Get the return-code of the process. Can be
+	 * called only after the process terminates!
+	 */
+	public int getReturnCode()
+	{
+		if (state != State.STOPPED)
+			throw new IllegalStateException("Return code is available only after process termination!");
+
+		return process.exitValue();
+	}
+
+	/** Get the ID of the process. */
+	public int getProcessId()
+	{
+		return pid;
+	}
+
+	/** Returns true when this runner represents a valid process, else false. */
+	public boolean isProcessValid()
+	{
+		return (state == State.STARTED || state == State.STOPPED);
+	}
+
+	/** Returns true when the process is in a running state, else false. */
+	public boolean isProcessRunning()
+	{
+		if (state != State.STARTED)
+			return false;
+
+		return process.isAlive();
+	}
+
+	/** Returns true when the process has finished execution, else false. */
+	public boolean isProcessFinished()
+	{
+		return !this.isProcessRunning();
+	}
+
+	/**
+	 * Start the process, that is represented by this runner.
+	 * @return true when the start was successful, else false.
+	 */
+	public boolean start()
+	{
+		return this.start(true);
+	}
+
+	/**
+	 * Start the process, that is represented by this runner.
+	 * @return true when the start was successful, else false.
+	 */
+	public boolean start(boolean redirect)
+	{
+		if (state != State.READY)
+			throw new IllegalStateException("Process not ready to start!");
+
+		if (redirect) {
+			// Create the temp-directory for process' output
+			try {
+				outdir = Files.createTempDirectory(PROPERTY_TMPDIR_BASE, PROPERTY_TMPDIR_PREFIX).toAbsolutePath();
+				stdout = new ProcessOutput(outdir.resolve(PROPERTY_STDOUT_FILENAME));
+				stderr = new ProcessOutput(outdir.resolve(PROPERTY_STDERR_FILENAME));
+			}
+			catch (IOException exception) {
+				String message = "Could not create a temporary directory for a new subprocess.";
+				throw new RuntimeException(message, exception);
+			}
+		}
+
+		// Prepare the process to run
+		ProcessBuilder builder = new ProcessBuilder(command);
+		builder.environment().putAll(environment);
+
+		// Set working directory
+		if (workdir != null)
+			builder.directory(workdir.toFile());
+
+		// Setup stdout + stderr redirection
+		if (redirect) {
+			builder.redirectOutput(stdout.file());
+			builder.redirectError(stderr.file());
+		}
+
+		if (redirectStdErrToStdOut)
+			builder.redirectErrorStream(true);
+
+		// Finally start the process
+		try {
+			process = builder.start();
+			pid = ProcessRunner.lookupUnixPid(process);
+			log.info("Subprocess " + pid + " started:  " + this.getCommandString());
+
+			if (!redirect) {
+				stdout = new ProcessOutput(process.getInputStream());
+				stderr = new ProcessOutput(process.getErrorStream());
+			}
+		}
+		catch (IOException exception) {
+			log.log(Level.SEVERE, "Starting new subprocess failed! CMD was: " + this.getCommandString(), exception);
+			this.cleanup();
+			return false;
+		}
+
+		state = State.STARTED;
+		return true;
+	}
+
+	/**
+	 * Block and wait for a running process to finish.
+	 * @return The return-code of the terminated process.
+	 */
+	public int waitUntilFinished()
+	{
+		if (state != State.STARTED && state != State.STOPPED) {
+			String message = "Waiting is not possible. Process was not started/stopped properly!";
+			throw new IllegalStateException(message);
+		}
+
+		// First waiting caller?
+		final boolean isFirstCaller = numWaitingCallers.incrementAndGet() == 1;
+		if (isFirstCaller)
+			log.info("Waiting for subprocess " + pid + " to finish...");
+
+		// Wait for the process termination
+		int retcode = -1;
+		try {
+			retcode = process.waitFor();
+		}
+		catch (InterruptedException e) {
+			// Ignore it!
+		}
+
+		// Fist waiting caller?
+		if (isFirstCaller) {
+			log.info("Subprocess " + pid + " terminated with code " + retcode);
+			state = State.STOPPED;
+		}
+
+		return retcode;
+	}
+
+	/**
+	 * Block and wait for a running process to finish.
+	 * @return true if prcess terminated, else false.
+	 */
+	public boolean waitUntilFinished(long timeout, TimeUnit unit)
+	{
+		if (state != State.STARTED && state != State.STOPPED) {
+			String message = "Waiting is not possible. Process was not started/stopped properly!";
+			throw new IllegalStateException(message);
+		}
+
+		// First waiting caller?
+		final boolean isFirstCaller = numWaitingCallers.incrementAndGet() == 1;
+		if (isFirstCaller)
+			log.info("Waiting for subprocess " + pid + " to finish...");
+
+		// Wait for the process termination
+		boolean exited = false;
+		try {
+			exited = process.waitFor(timeout, unit);
+		}
+		catch (InterruptedException e) {
+			// Ignore it!
+		}
+
+		// Fist waiting caller?
+		if (isFirstCaller) {
+			log.info("Subprocess " + pid + " terminated!");
+			state = State.STOPPED;
+		}
+
+		return exited;
+	}
+
+	/** Stop the running process and wait for termination. */
+	public ProcessRunner stop()
+	{
+		if (state != State.STARTED)
+			return this;
+
+		log.info("Stopping subprocess " + pid + "...");
+		process.destroy();
+
+		this.waitUntilFinished();
+		return this;
+	}
+
+	/** Stop the running process and wait for termination. */
+	public ProcessRunner stop(long timeout, TimeUnit unit)
+	{
+		if (state != State.STARTED)
+			return this;
+
+		log.info("Stopping subprocess " + pid + "...");
+		process.destroy();
+
+		this.waitUntilFinished(timeout, unit);
+		return this;
+	}
+
+	/** Kill the running process. */
+	public ProcessRunner kill()
+	{
+		if (state != State.STARTED)
+			return this;
+
+		log.info("Killing subprocess " + pid + "...");
+		process.destroyForcibly();
+		this.waitUntilFinished();
+		return this;
+	}
+
+	/** Perform the cleanup of process' temp-directory. */
+	public void cleanup()
+	{
+		if (this.isProcessRunning())
+			throw new IllegalStateException("Attempt to cleanup a running process!");
+
+		try {
+			if(monitor != null)
+				monitor.stop();
+		}
+		catch (IOException exception) {
+			log.log(Level.WARNING, "Stopping process-monitor failed!", exception);
+		}
+
+		// Close all io-streams
+		this.cleanup(stdout);
+		this.cleanup(stderr);
+
+		try {
+			// Delete created files
+			if (outdir != null)
+				Files.deleteIfExists(outdir);
+		}
+		catch (IOException exception) {
+			log.log(Level.WARNING, "Cleanup of process-output directory failed!", exception);
+		}
+
+		state = State.INVALID;
+	}
+
+
+	/* ==================== Helper Methods ==================== */
+
+	/**
+	 * Start this process and wait for it to finish.
+	 * When process terminates, print stdout/stderr and perform cleanup-operations.
+	 * @return true when the return-code of the terminated process is 0, else false.
+	 */
+	public boolean execute()
+	{
+		return this.execute(true);
+	}
+
+	/**
+	 * Start this process and wait for it to finish.
+	 * @param verbose If set to true, then print stdout and stderr when process terminates.
+	 * @return true when the return-code of the terminated process is 0, else false.
+	 */
+	public boolean execute(boolean verbose)
+	{
+		if (!this.start(false))
+			return false;
+
+		final int retcode = this.waitUntilFinished();
+
+		if (verbose) {
+			try {
+				this.printStdOut();
+				this.printStdErr();
+			}
+			catch (Exception exception) {
+				log.log(Level.WARNING, "Printing process-runner's stdout/err failed!", exception);
+			}
+		}
+
+		this.cleanup();
+
+		return (retcode == 0);
+	}
+
+	/** Execute this process and return its stdout + stderr. */
+	public Optional<Result> executeWithResult() throws IOException
+	{
+		return this.executeWithResult(true);
+	}
+
+	/** Execute this process and return its stdout + stderr. */
+	public Optional<Result> executeWithResult(boolean verbose) throws IOException
+	{
+		return this.executeWithResult(verbose, false);
+	}
+
+	/**
+	 * Execute this process and return its stdout + stderr.
+	 * @param verbose If set to true, then additionally log stdout and stderr when process terminates.
+	 * @param redirect If set to true, then also redirect stdout and stderr to files.
+	 */
+	public Optional<Result> executeWithResult(boolean verbose, boolean redirect) throws IOException
+	{
+		if (!this.start(redirect))
+			return Optional.empty();
+
+		try {
+			final int retcode = this.waitUntilFinished();
+			final String stdout = this.getStdOutString();
+			final String stderr = this.getStdErrString();
+			if (verbose) {
+				this.printStdOut(stdout);
+				this.printStdErr(stderr);
+			}
+
+			return Optional.of(new Result(retcode, stdout, stderr));
+		}
+		finally {
+			this.cleanup();
+		}
+	}
+
+
+	/** Result of a process execution */
+	public static class Result
+	{
+		private final int retcode;
+		private final String stdout;
+		private final String stderr;
+
+		public Result()
+		{
+			this(-1, null, null);
+		}
+
+		public Result(int retcode, String stdout, String stderr)
+		{
+			this.retcode = retcode;
+			this.stdout = stdout;
+			this.stderr = stderr;
+		}
+
+		public boolean successful()
+		{
+			return (retcode == 0);
+		}
+
+		public int code()
+		{
+			return retcode;
+		}
+
+		public String stdout()
+		{
+			return stdout;
+		}
+
+		public String stderr()
+		{
+			return stderr;
+		}
+	}
+
+
+	/* ==================== Internal Methods ==================== */
+
+	private static int lookupUnixPid(Process process)
+	{
+		return (int) process.pid();
+	}
+
+	private void printStdOut(String output)
+	{
+		if (output.isEmpty())
+			return;
+
+		log.info("Subprocess " + this.getProcessId() + " stdout:\n" + output);
+	}
+
+	private void printStdErr(String output)
+	{
+		if (output.isEmpty())
+			return;
+
+		log.info("Subprocess " + this.getProcessId() + " stderr:\n" + output);
+	}
+
+	private void reset(boolean keepenv)
+	{
+		if (!keepenv)
+			environment.clear();
+
+		command.clear();
+
+		workdir = null;
+		process = null;
+		monitor = null;
+		outdir = null;
+		stdout = null;
+		stderr = null;
+
+		pid = INVALID_PID;
+		numWaitingCallers.set(0);
+		state = State.INVALID;
+	}
+
+	private void cleanup(ProcessOutput output)
+	{
+		if (output == null)
+			return;
+
+		try {
+			output.close();
+		}
+		catch (Exception exception) {
+			log.log(Level.WARNING, "Closing process-output failed!", exception);
+		}
+
+		try {
+			output.cleanup();
+		}
+		catch (Exception exception) {
+			log.log(Level.WARNING, "Cleanup of process-output failed!", exception);
+		}
+	}
+
+	private void ensureStateReady()
+	{
+		if (state != State.READY)
+			throw new IllegalStateException("No command specified!");
+	}
+
+	private static void ensureNotNull(Object object, String message)
+	{
+		if (object == null)
+			throw new IllegalStateException(message);
+	}
+
+	private static void ensureNotNull(Object object) {
+		if (object == null)
+			throw new IllegalStateException("Argument is null!");
+	}
+
+	private static void ensureNotEmpty(String arg)
+	{
+		if (arg == null || arg.isEmpty())
+			throw new IllegalArgumentException("Argument is null or empty!");
+	}
+
+	private static void ensureValidEnvVarName(String name)
+	{
+		if (!ENVIRONMENT_VARNAME_MATCHER.test(name))
+			throw new IllegalStateException("Environment variable name contains invalid characters: " + name);
+	}
+}
+
+
+final class ProcessOutput
+{
+	private final Path outpath;
+	private InputStream outstream;
+
+	ProcessOutput(Path path)
+	{
+		this.outpath = path;
+		this.outstream = null;
+	}
+
+	ProcessOutput(InputStream stream)
+	{
+		this.outpath = null;
+		this.outstream = stream;
+	}
+
+	public Path path()
+	{
+		return outpath;
+	}
+
+	public File file()
+	{
+		if (outpath == null)
+			throw new IllegalStateException();
+
+		return outpath.toFile();
+	}
+
+	public InputStream stream() throws IOException
+	{
+		if (outstream == null)
+			outstream = Files.newInputStream(outpath);
+
+		return outstream;
+	}
+
+	public Reader reader() throws IOException
+	{
+		InputStream stream = this.stream();
+		return new InputStreamReader(stream);
+	}
+
+	public String string() throws IOException
+	{
+		StringBuilder builder = new StringBuilder(1024);
+		char[] buffer = new char[512];
+		try (Reader reader = this.reader()) {
+			while (reader.ready()) {
+				int length = reader.read(buffer);
+				if (length < 0)
+					break;  // End-of-stream
+
+				builder.append(buffer, 0, length);
+			}
+		}
+
+		return builder.toString();
+	}
+
+	public void close() throws IOException
+	{
+		if (outstream != null)
+			outstream.close();
+	}
+
+	public void cleanup() throws IOException
+	{
+		if (outpath != null)
+			Files.deleteIfExists(outpath);
+	}
+
+	public boolean exists()
+	{
+		if (outpath == null)
+			return false;
+
+		return Files.exists(outpath);
+	}
 }

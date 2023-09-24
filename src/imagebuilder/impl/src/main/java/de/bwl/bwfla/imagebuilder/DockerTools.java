@@ -1,16 +1,14 @@
 package de.bwl.bwfla.imagebuilder;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.imagebuilder.api.ImageContentDescription;
 
 import javax.json.*;
 import java.io.IOException;
 import java.io.StringReader;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 
@@ -41,7 +39,7 @@ class DockerTools {
 
         log.info("Copying digest " + ds.digest + "...");
 
-        DeprecatedProcessRunner runner_ = new DeprecatedProcessRunner();
+        ProcessRunner runner_ = new ProcessRunner();
         runner_.setLogger(log);
         runner_.setCommand("/bin/sh");
         runner_.setWorkingDirectory(destDir);
@@ -113,13 +111,13 @@ class DockerTools {
 
     private String getConfig() throws BWFLAException
     {
-        DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
+        ProcessRunner runner = new ProcessRunner();
         runner.setCommand("crane");
         runner.addArguments("config", ds.imageRef + "@" + ds.digest);
         runner.setLogger(log);
 
         try {
-            final DeprecatedProcessRunner.Result result = runner.executeWithResult(false)
+            final ProcessRunner.Result result = runner.executeWithResult(false)
                     .orElse(null);
 
             if (result == null || !result.successful())
@@ -135,14 +133,14 @@ class DockerTools {
 
     private String jq(String config, String query) throws BWFLAException
     {
-        DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
+        ProcessRunner runner = new ProcessRunner();
         runner.setCommand("/bin/sh");
         runner.addEnvVariable("config", config);
         runner.addEnvVariable("query", query);
         runner.addArguments("-c", "printf %s \"$config\" | jq -r \"$query\"");
         runner.setLogger(log);
         try {
-            final DeprecatedProcessRunner.Result result = runner.executeWithResult(true)
+            final ProcessRunner.Result result = runner.executeWithResult(true)
                     .orElse(null);
 
             if (result == null || !result.successful())
@@ -162,13 +160,13 @@ class DockerTools {
         if(ds.tag == null)
             ds.tag = "latest";
 
-        DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
+        ProcessRunner runner = new ProcessRunner();
         runner.setLogger(log);
         runner.setCommand("crane");
         runner.addArgument("digest");
         runner.addArgument(ds.imageRef + ":" + ds.tag);
           try {
-            final DeprecatedProcessRunner.Result result = runner.executeWithResult(true)
+            final ProcessRunner.Result result = runner.executeWithResult(true)
                     .orElse(null);
             if (result == null || !result.successful())
                 throw new BWFLAException("Running crane failed!");

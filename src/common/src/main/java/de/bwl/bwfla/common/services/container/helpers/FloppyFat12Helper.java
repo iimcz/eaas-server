@@ -33,7 +33,7 @@ import org.apache.commons.io.FileUtils;
 
 import de.bwl.bwfla.common.services.container.types.Container;
 import de.bwl.bwfla.common.services.container.types.FloppyContainer;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.conf.CommonSingleton;
 
 
@@ -58,7 +58,7 @@ public class FloppyFat12Helper extends ContainerHelper
 		{
 			floppy = File.createTempFile("floppy_", ".img");
 			
-			DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
+			ProcessRunner runner = new ProcessRunner();
 			runner.setCommand(floppyCreateScript.getAbsolutePath());
 			runner.addArgument(floppy.toString());
 	
@@ -103,7 +103,7 @@ public class FloppyFat12Helper extends ContainerHelper
 
 		// acquire floppy_io.sh script location
 		File floppyIoScript = new File(CommonSingleton.helpersConf.floppyFat12Io);
-		DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
+		ProcessRunner runner = new ProcessRunner();
 
 		// iteratively inject files into floppy
 		for(File file : files)
@@ -137,7 +137,7 @@ public class FloppyFat12Helper extends ContainerHelper
 		{
             result = Files.createTempDirectory("").toFile();
 			
-			DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
+			ProcessRunner runner = new ProcessRunner();
 			runner.setCommand(floppyIoScript.getAbsolutePath());
 			runner.addArgument("e");
 			runner.addArgument(floppyFile.getAbsolutePath());

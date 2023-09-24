@@ -20,7 +20,7 @@ package com.openslx.eaas.common.util;
 
 import com.openslx.eaas.common.databind.DataUtils;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 
 import javax.ws.rs.core.MediaType;
 import java.io.InputStream;
@@ -34,7 +34,7 @@ import java.util.logging.Logger;
 
 public class CurlTool implements AutoCloseable
 {
-	private final DeprecatedProcessRunner curl;
+	private final ProcessRunner curl;
 	private final StringBuilder query;
 	private String url;
 
@@ -46,7 +46,7 @@ public class CurlTool implements AutoCloseable
 	public CurlTool(Logger log)
 	{
 		this.query = new StringBuilder(128);
-		this.curl = new DeprecatedProcessRunner()
+		this.curl = new ProcessRunner()
 				.setLogger(log);
 
 		this.reset();

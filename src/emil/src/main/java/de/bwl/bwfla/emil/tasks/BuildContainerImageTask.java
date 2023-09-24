@@ -4,7 +4,7 @@ import com.openslx.eaas.imagearchive.ImageArchiveClient;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.taskmanager.BlockingTask;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.emil.EmilEnvironmentRepository;
 import de.bwl.bwfla.emil.datatypes.rest.ComponentResponse;
 import de.bwl.bwfla.emil.datatypes.rest.CreateContainerImageRequest;
@@ -79,13 +79,13 @@ public class BuildContainerImageTask extends BlockingTask<Object> {
         if (tag == null)
             tag = "latest";
 
-        DeprecatedProcessRunner runner = new DeprecatedProcessRunner();
+        ProcessRunner runner = new ProcessRunner();
         runner.setLogger(log);
         runner.setCommand("crane");
         runner.addArgument("digest");
         runner.addArgument(imageName + ":" + tag);
         try {
-            final DeprecatedProcessRunner.Result result = runner.executeWithResult(true)
+            final ProcessRunner.Result result = runner.executeWithResult(true)
                     .orElse(null);
             if (result == null || !result.successful())
                 throw new BWFLAException("Running crane failed!");

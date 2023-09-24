@@ -26,7 +26,7 @@ import de.bwl.bwfla.blobstore.api.BlobDescription;
 import de.bwl.bwfla.blobstore.api.BlobHandle;
 import de.bwl.bwfla.blobstore.client.BlobStoreClient;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.common.utils.DiskDescription;
 import de.bwl.bwfla.emucomp.api.EmulatorUtils;
 import de.bwl.bwfla.emucomp.api.FileSystemType;
@@ -228,7 +228,7 @@ public class ImageGeneralizationPatch {
 		public boolean apply(Path mountpoint, Logger log)
 		{
 			// Run locally installed script
-			final DeprecatedProcessRunner patcher = new DeprecatedProcessRunner()
+			final ProcessRunner patcher = new ProcessRunner()
 					.setCommand(location.toString())
 					.addArgument(mountpoint.toString())
 					.setLogger(log);

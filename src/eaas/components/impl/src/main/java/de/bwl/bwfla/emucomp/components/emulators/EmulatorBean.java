@@ -40,7 +40,7 @@ import de.bwl.bwfla.common.services.guacplay.net.GuacTunnel;
 import de.bwl.bwfla.common.services.guacplay.net.TunnelConfig;
 import de.bwl.bwfla.common.services.guacplay.protocol.InstructionBuilder;
 import de.bwl.bwfla.common.services.guacplay.record.SessionRecorder;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.common.utils.DiskDescription;
 import de.bwl.bwfla.common.utils.ImageInformation;
 import de.bwl.bwfla.common.utils.ProcessMonitor;
@@ -145,8 +145,8 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 	private String emuNativeConfig;
 	protected final Map<Integer, File> containers = Collections.synchronizedMap(new HashMap<Integer, File>());
 
-	protected final DeprecatedProcessRunner emuRunner = new DeprecatedProcessRunner();
-	protected final ArrayList<DeprecatedProcessRunner> vdeProcesses = new ArrayList<DeprecatedProcessRunner>();
+	protected final ProcessRunner emuRunner = new ProcessRunner();
+	protected final ArrayList<ProcessRunner> vdeProcesses = new ArrayList<ProcessRunner>();
 
 	protected final BindingsManager bindings = new BindingsManager(LOG);
 
@@ -515,7 +515,7 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 		containers.clear();
 
 		// kill vde networking threads
-		for(DeprecatedProcessRunner subprocess : this.vdeProcesses)
+		for(ProcessRunner subprocess : this.vdeProcesses)
 		{
 			if(subprocess.isProcessRunning())
 				subprocess.stop();
@@ -635,7 +635,7 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 			{
 				final String conConfigPath = Paths.get(workdir, "config.json").toString();
 
-				final DeprecatedProcessRunner cgen = new DeprecatedProcessRunner();
+				final ProcessRunner cgen = new ProcessRunner();
 				cgen.setCommand("emucon-cgen");
 				cgen.addArguments("--output", conConfigPath);
 				cgen.addArguments("--user-id", emuContainerUserId);
@@ -1058,7 +1058,7 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 				final Path outputDir = this.getWorkingDir().resolve("partition-" + partition.getIndex());
 
 				LOG.info("Executing RSYNC to determine changed files...");
-				DeprecatedProcessRunner processRunner = new DeprecatedProcessRunner("rsync");
+				ProcessRunner processRunner = new ProcessRunner("rsync");
 				processRunner.addArguments("-armxv"); //, "--progress"); when using --progress, rsync sometimes hangs...
 				processRunner.addArguments("--exclude", "dev");
 				processRunner.addArguments("--exclude", "proc");
@@ -1073,14 +1073,14 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 
 				partitionFiles.add(outputDir);
 
-				DeprecatedProcessRunner cleaner = new DeprecatedProcessRunner("find");
+				ProcessRunner cleaner = new ProcessRunner("find");
 				cleaner.addArguments(outputDir.toAbsolutePath().toString(), "-empty", "-delete");
 				cleaner.execute(true);
 				cleaner.cleanup();
 			}
 
 			Path outputTar = workdir.resolve("output.tgz");
-			DeprecatedProcessRunner tarCollectProc = new DeprecatedProcessRunner("tar");
+			ProcessRunner tarCollectProc = new ProcessRunner("tar");
 			tarCollectProc.addArguments("-czf");
 			tarCollectProc.addArguments(outputTar.toAbsolutePath().toString());
 			tarCollectProc.addArguments("-C", this.getWorkingDir().toAbsolutePath().toString());
@@ -1256,7 +1256,7 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 		}
 	}
 
-	void stopProcessRunner(DeprecatedProcessRunner runner)
+	void stopProcessRunner(ProcessRunner runner)
 	{
 		final int emuProcessId = runner.getProcessId();
 		final var emuContainerId = this.getContainerId();
@@ -1282,7 +1282,7 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 		}
 
 		if (this.isContainerModeEnabled()) {
-			final var killer = new DeprecatedProcessRunner();
+			final var killer = new ProcessRunner();
 			final var cmds = new ArrayList<List<String>>(2);
 			cmds.add(List.of("runc", "kill", emuContainerId, "TERM"));
 			cmds.add(List.of("runc", "kill", "-a", emuContainerId, "KILL"));
@@ -1339,7 +1339,7 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 
 	private void sync() throws BWFLAException
 	{
-		final DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		final ProcessRunner process = new ProcessRunner();
 		process.setCommand("sync");
 		if (!process.execute()) {
 			throw new BWFLAException("Syncing filesystem failed!")
@@ -1618,7 +1618,7 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 		if(userData.exists())
 			throw new BWFLAException("copied user data twice");
 
-		DeprecatedProcessRunner cp = new DeprecatedProcessRunner();
+		ProcessRunner cp = new ProcessRunner();
 		cp.setCommand("cp");
 		cp.addArgument("-rv");
 		cp.addArgument(src.getAbsolutePath());
@@ -1896,7 +1896,7 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 		};
 
 		final Path checkpoint = workdir.resolve("checkpoint" + CHECKPOINT_FILE_EXTENSION);
-		final DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+		final ProcessRunner process = new ProcessRunner();
 
 		LOG.info("Checkpointing emulator-container " + this.getContainerId() + "...");
 
@@ -2352,7 +2352,7 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 	{
 		LOG.info("Waiting for CRIU restore-worker to exit...");
 
-		final DeprecatedProcessRunner waiter = new DeprecatedProcessRunner("/bin/sh");
+		final ProcessRunner waiter = new ProcessRunner("/bin/sh");
 		waiter.addArguments("-c", "while ! sudo runc " +
 				"ps "  + this.getContainerId() + "; do :; done; while sudo runc ps " + this.getContainerId() + " | grep -q criu; do :; done");
 		waiter.execute();
@@ -2593,7 +2593,7 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 			vdeHubName = conDataDir.resolve(hostDataDir.relativize(vdeHubName));
 		}
 		else {
-			DeprecatedProcessRunner process = new DeprecatedProcessRunner("vde_switch");
+			ProcessRunner process = new ProcessRunner("vde_switch");
 			process.addArgument("-hub");
 			process.addArgument("-s");
 			process.addArgument(vdeHubName.toString());

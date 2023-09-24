@@ -52,7 +52,7 @@ import com.openslx.eaas.resolver.DataResolver;
 import de.bwl.bwfla.common.datatypes.DigitalObjectMetadata;
 import de.bwl.bwfla.common.services.container.helpers.CdromIsoHelper;
 import de.bwl.bwfla.common.taskmanager.TaskState;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.common.utils.METS.MetsUtil;
 import de.bwl.bwfla.objectarchive.conf.ObjectArchiveSingleton;
 import de.bwl.bwfla.objectarchive.datatypes.*;
@@ -880,7 +880,7 @@ public class DigitalObjectFileArchive implements Serializable, DigitalObjectArch
 
 		if (!objectIdsToRemove.isEmpty()) {
 			log.info("Removing empty objects in archive '" + this.getName() + "'...");
-			final var deleter = new DeprecatedProcessRunner()
+			final var deleter = new ProcessRunner()
 					.setLogger(log);
 
 			objectIdsToRemove.forEach((objectId) -> {

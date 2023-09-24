@@ -21,7 +21,7 @@ package de.bwl.bwfla.imagebuilder;
 
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.logging.PrefixLogger;
-import de.bwl.bwfla.common.utils.DeprecatedProcessRunner;
+import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.imagebuilder.api.ImageDescription;
 
 import java.nio.file.Files;
@@ -64,7 +64,7 @@ public class MediumBuilderCD extends MediumBuilder
 
     private void createCDIso(Path input, Path output, Logger log) throws BWFLAException
     {
-        final DeprecatedProcessRunner process = new DeprecatedProcessRunner();
+        final ProcessRunner process = new ProcessRunner();
 
         process.setLogger(log);
         process.setCommand("mkisofs");
