@@ -71,6 +71,7 @@ import de.bwl.bwfla.emil.tasks.ReplicateImageTask;
 import de.bwl.bwfla.emil.utils.ImportCounts;
 import de.bwl.bwfla.emil.utils.LegacyImageArchiveConfigIterator;
 import de.bwl.bwfla.emil.utils.LegacyImageArchiveUtils;
+import de.bwl.bwfla.emil.utils.MachineEnvironmentTuple;
 import de.bwl.bwfla.emil.utils.TaskManager;
 import de.bwl.bwfla.emucomp.api.*;
 import de.bwl.bwfla.emucomp.api.MachineConfiguration.NativeConfig;
@@ -597,107 +598,107 @@ public class EnvironmentRepository extends EmilRest
 			}
 		}
 
+		/** Construct an ephemeral machine config and environment description */
+		public MachineEnvironmentTuple construct(EnvironmentCreateRequest request) throws BWFLAException
+		{
+			if (request.getTemplateId() == null || request.getTemplateId().isEmpty())
+				throw new IllegalArgumentException("Template ID is invalid!");
+
+			final var template = imagearchive.api()
+					.v2()
+					.templates()
+					.fetch(request.getTemplateId());
+
+			final var machine = (MachineConfiguration) template.copy(); // don't modify the real template
+			machine.setId(UUID.randomUUID().toString());
+			machine.setCurrentTimestamp();
+			machine.getDescription()
+					.setTitle(request.getLabel());
+
+			if (machine.getNativeConfig() == null)
+				machine.setNativeConfig(new NativeConfig());
+
+			machine.getNativeConfig()
+					.setValue(request.getNativeConfig());
+
+			machine.setOperatingSystemId(request.getOperatingSystemId());
+			EnvironmentRepository.driveUpdateHelper(machine, request.getDriveSettings(), objects);
+
+			if (machine.getUiOptions() == null)
+				machine.setUiOptions(new UiOptions());
+
+			final UiOptions uiopts = machine.getUiOptions();
+			if (request.isUseXpra())
+				uiopts.setForwarding_system("XPRA");
+			else uiopts.setForwarding_system(null);
+
+			if (request.isUseWebRTC())
+				uiopts.setAudio_system("webRTC");
+			else uiopts.setAudio_system(null);
+
+			if (uiopts.getHtml5() == null)
+				uiopts.setHtml5(new Html5Options());
+
+			uiopts.setDisableGhostCursor(request.isDisableGhostCursor());
+
+			// TODO: refactor
+			if (request.getRomId() != null && request.getRomLabel() != null) {
+				ImageArchiveBinding romBinding = new ImageArchiveBinding("default", request.getRomId(), ImageType.ROMS.value());
+				romBinding.setId("rom-" + request.getRomId());
+				romBinding.setAccess(Binding.AccessType.COPY);
+				machine.getAbstractDataResource().add(romBinding);
+			}
+
+			final var environment = new EmilEnvironment();
+			environment.setEnvId(machine.getId());
+			environment.setTitle(request.getLabel());
+			environment.setDescription("User created environment");
+			environment.setEnableRelativeMouse(request.isEnableRelativeMouse());
+			environment.setEnablePrinting(request.isEnablePrinting());
+			environment.setShutdownByOs(request.isShutdownByOs());
+			environment.setXpraEncoding(request.getXpraEncoding());
+			environment.setOs(request.getOperatingSystemId());
+			environment.setLinuxRuntime(machine.isLinuxRuntime());
+			if (machine.isLinuxRuntime())
+				environment.setArchive("public");
+
+			if (request.isEnableNetwork()) {
+				NetworkingType network = new NetworkingType();
+				network.setConnectEnvs(true);
+				network.setEnableInternet(request.isEnableInternet());
+				environment.setNetworking(network);
+			}
+
+			return new MachineEnvironmentTuple(machine, environment);
+		}
+
 		/** Create a new environment */
 		@POST
 		@Secured(roles={Role.RESTRICTED})
 		@Produces(MediaType.APPLICATION_JSON)
 		@Consumes(MediaType.APPLICATION_JSON)
-		public Response create(EnvironmentCreateRequest envReq)
+		public Response create(EnvironmentCreateRequest request)
 		{
-			LOG.info("Creating new environment...");
-
-			if (envReq.getTemplateId() == null)
-				return EnvironmentRepository.errorMessageResponse("invalid template id");
+			LOG.info("Creating new environment from template '" + request.getTemplateId() + "'...");
 
 			try {
-				final var template = imagearchive.api()
-						.v2()
-						.templates()
-						.fetch(envReq.getTemplateId());
+				final var result = this.construct(request);
+				final var environment = result.environment();
+				final var machine = result.machine();
+				final var ropts = new ReplaceOptionsV2();
+				if (machine.isLinuxRuntime())
+					ropts.setLocation("public");
 
-				if (template == null) {
-					LOG.severe("invalid template id: " + envReq.getTemplateId());
-					throw new BadRequestException(Response
-							.status(Response.Status.BAD_REQUEST)
-							.entity(new ErrorInformation("invalid template id: " + envReq.getTemplateId()))
-							.build());
-				}
-
-				MachineConfiguration env = template.copy(); // don't modify the real template
-				LOG.severe(env.toString());
-				env.getDescription().setTitle(envReq.getLabel());
-				if (env.getNativeConfig() == null)
-					env.setNativeConfig(new NativeConfig());
-
-				env.setOperatingSystemId(envReq.getOperatingSystemId());
-				env.getNativeConfig().setValue(envReq.getNativeConfig());
-				driveUpdateHelper(env, envReq.getDriveSettings(), objects);
-
-				if (env.getUiOptions() == null)
-					env.setUiOptions(new UiOptions());
-
-				final UiOptions uiopts = env.getUiOptions();
-				if (envReq.isUseXpra())
-					uiopts.setForwarding_system("XPRA");
-				else uiopts.setForwarding_system(null);
-
-				if (envReq.isUseWebRTC())
-					uiopts.setAudio_system("webRTC");
-				else uiopts.setAudio_system(null);
-
-				if (uiopts.getHtml5() == null)
-					uiopts.setHtml5(new Html5Options());
-
-				uiopts.setDisableGhostCursor(envReq.isDisableGhostCursor());
-
-				// TODO: refactor
-				if(envReq.getRomId() != null && envReq.getRomLabel() != null)
-				{
-					ImageArchiveBinding romBinding = new ImageArchiveBinding("default", envReq.getRomId(), ImageType.ROMS.value());
-					romBinding.setId("rom-" + envReq.getRomId());
-					romBinding.setAccess(Binding.AccessType.COPY);
-					env.getAbstractDataResource().add(romBinding);
-				}
-
-				final var iopts = new InsertOptionsV2();
-				if(env.isLinuxRuntime())
-					iopts.setLocation("public");
-
-				final var id = imagearchive.api()
+				imagearchive.api()
 						.v2()
 						.machines()
-						.insert(env);
+						.replace(machine.getId(), machine, ropts);
 
-				EmilEnvironment newEmilEnv = emilEnvRepo.getEmilEnvironmentById(id);
-
-				if (newEmilEnv != null)
-					throw new BWFLAException("import failed: environment with id: " + id + " exists.");
-
-				newEmilEnv = new EmilEnvironment();
-				newEmilEnv.setTitle(envReq.getLabel());
-				newEmilEnv.setEnvId(id);
-				newEmilEnv.setLinuxRuntime(env.isLinuxRuntime());
-				if(env.isLinuxRuntime())
-					newEmilEnv.setArchive("public");
-				newEmilEnv.setEnableRelativeMouse(envReq.isEnableRelativeMouse());
-				newEmilEnv.setEnablePrinting(envReq.isEnablePrinting());
-				newEmilEnv.setShutdownByOs(envReq.isShutdownByOs());
-				newEmilEnv.setXpraEncoding(envReq.getXpraEncoding());
-				newEmilEnv.setOs(envReq.getOperatingSystemId());
-
-				if(envReq.isEnableNetwork())
-				{
-					NetworkingType network = new NetworkingType();
-					network.setConnectEnvs(true);
-					network.setEnableInternet(envReq.isEnableInternet());
-					newEmilEnv.setNetworking(network);
-				}
-
-				newEmilEnv.setDescription("imported / user created environment");
-				emilEnvRepo.save(newEmilEnv, true);
+				emilEnvRepo.save(environment, true);
+				LOG.info("New environment created: " + machine.getId());
 
 				final JsonObject json = Json.createObjectBuilder()
-						.add("id", id)
+						.add("id", machine.getId())
 						.build();
 
 				return Response.ok()
@@ -705,7 +706,7 @@ public class EnvironmentRepository extends EmilRest
 						.build();
 			}
 			catch (Throwable error) {
-				error.printStackTrace();
+				LOG.log(Level.WARNING, "Creating new environment failed!", error);
 				throw new BadRequestException(Response
 						.status(Response.Status.BAD_REQUEST)
 						.entity(new ErrorInformation(error.getMessage()))
