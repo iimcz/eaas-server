@@ -187,6 +187,9 @@ public class Components {
     protected static final Logger LOG = Logger.getLogger("eaas/components");
 
     @Inject
+    private EnvironmentRepository envRepo;
+
+    @Inject
     private EmilEnvironmentRepository emilEnvRepo;
 
     /** Path to session statistics log */
@@ -679,33 +682,62 @@ public class Components {
                 .push(taskname, task);
     }
 
-    protected ComponentResponse createMachineComponent(MachineComponentRequest machineDescription, UserContext userctx, TaskStack cleanups, List<EventObserver> observer)
+    protected ComponentResponse createMachineComponent(MachineComponentRequest request, UserContext userctx, TaskStack cleanups, List<EventObserver> observer)
             throws WebApplicationException
     {
-        if (machineDescription.getEnvironment() == null) {
+        if (request.getEnvironment() == null && request.getEnvironmentConfig() == null) {
             throw new BadRequestException(Response
                     .status(Response.Status.BAD_REQUEST)
-                    .entity(new ErrorInformation("No environment id was given"))
+                    .entity(new ErrorInformation("No environment ID or config was given!"))
                     .build());
         }
 
+        EmilEnvironment emilEnv = null;
+        MachineConfiguration chosenEnv = null;
         try {
-            EmilEnvironment emilEnv = this.emilEnvRepo.getEmilEnvironmentById(machineDescription.getEnvironment(), userctx);
-            Environment chosenEnv = emilEnvRepo.getImageArchive()
-                    .api()
-                    .v2()
-                    .environments()
-                    .fetch(machineDescription.getEnvironment());
+            if (request.getEnvironmentConfig() != null) {
+                if (!userctx.isAvailable()) {
+                    // NOTE: allow only authenticated users here, similarly to the current
+                    //       behavior of the modify-store-execute workflow for environments
+                    throw new BadRequestException(Response
+                            .status(Response.Status.BAD_REQUEST)
+                            .entity(new ErrorInformation("User is not authenticated!"))
+                            .build());
+                }
 
-            if (chosenEnv == null) {
-                throw new BadRequestException(Response
-                        .status(Response.Status.BAD_REQUEST)
-                        .entity(new ErrorInformation("could not find environment: " + machineDescription.getEnvironment()))
-                        .build());
+                LOG.info("Constructing an ephemeral environment based on user-provided config...");
+                final var result = envRepo.environments()
+                        .construct(request.getEnvironmentConfig());
+
+                emilEnv = result.environment();
+                chosenEnv = result.machine();
+
+                request.setEnvironment(chosenEnv.getId());
+            }
+            else {
+                LOG.info("Looking up persistent environment '" + request.getEnvironment() + "'...");
+                chosenEnv = emilEnvRepo.getImageArchive()
+                        .api()
+                        .v2()
+                        .machines()
+                        .fetch(request.getEnvironment());
+
+                emilEnv = emilEnvRepo.getEmilEnvironmentById(request.getEnvironment(), userctx);
             }
 
-            final MachineConfiguration config = (MachineConfiguration) chosenEnv;
+            return this.createMachineComponent(chosenEnv, emilEnv, request, userctx, cleanups, observer);
+        }
+        catch (Exception error) {
+            LOG.log(Level.SEVERE, "Creating machine component failed!", error);
+            throw Components.newInternalError(error);
+        }
+    }
 
+    protected ComponentResponse createMachineComponent(MachineConfiguration config, EmilEnvironment emilEnv,
+            MachineComponentRequest machineDescription, UserContext userctx, TaskStack cleanups, List<EventObserver> observer)
+            throws Exception
+    {
+        try {
             EmulationEnvironmentHelper.setKbdConfig(config,
                     machineDescription.getKeyboardLayout(),
                     machineDescription.getKeyboardModel());
@@ -764,7 +796,7 @@ public class Components {
             else {
 
                 // audio should only be set for non container instances.
-                checkAndUpdateEnvironmentDefaults(chosenEnv);
+                checkAndUpdateEnvironmentDefaults(config);
 
                 // Wrap external input files into images
                 for (ComponentWithExternalFilesRequest.InputMedium medium : machineDescription.getInputMedia())
@@ -794,19 +826,19 @@ public class Components {
             // hack: we need to initialize the user archive:
             objectRepository.registerUserArchive(userctx);
             if (machineDescription.getObject() != null) {
-                driveId = addObjectToEnvironment(chosenEnv, machineDescription.getObjectArchive(), machineDescription.getObject(), userctx);
+                driveId = addObjectToEnvironment(config, machineDescription.getObjectArchive(), machineDescription.getObject(), userctx);
             } else if (machineDescription.getSoftware() != null) {
                 final var software = this.getSoftwarePackage(machineDescription.getSoftware());
-                driveId = addObjectToEnvironment(chosenEnv, software.getArchive(), software.getObjectId(), userctx);
+                driveId = addObjectToEnvironment(config, software.getArchive(), software.getObjectId(), userctx);
             }
 
-            final List<String> selectors = resourceProviderSelection.getSelectors(chosenEnv.getId());
+            final List<String> selectors = resourceProviderSelection.getSelectors(config.getId());
             SessionOptions options = new SessionOptions();
             if(selectors != null && !selectors.isEmpty())
                 options.getSelectors().addAll(selectors);
 
-            if((!((MachineConfiguration) chosenEnv).hasCheckpointBindingId() && emilEnv.getNetworking() != null && emilEnv.getNetworking().isConnectEnvs())
-                    || ((MachineConfiguration) chosenEnv).isLinuxRuntime()) {
+            if((!config.hasCheckpointBindingId() && emilEnv != null && emilEnv.getNetworking() != null && emilEnv.getNetworking().isConnectEnvs())
+                    || config.isLinuxRuntime()) {
                 String hwAddress;
                 if (machineDescription.getNic() == null) {
                     LOG.warning("HWAddress is null! Using random..." );
@@ -815,7 +847,7 @@ public class Components {
                     hwAddress = machineDescription.getNic();
                 }
 
-                List<Nic> nics = ((MachineConfiguration) chosenEnv).getNic();
+                List<Nic> nics = config.getNic();
                 Nic nic = new Nic();
                 nic.setHwaddress(hwAddress);
                 nics.clear();
@@ -831,18 +863,17 @@ public class Components {
 
             if(machineDescription.isHeadless())
             {
-                MachineConfiguration conf = (MachineConfiguration) chosenEnv;
-                if(conf.getUiOptions() == null)
-                    conf.setUiOptions(new UiOptions());
+                if(config.getUiOptions() == null)
+                    config.setUiOptions(new UiOptions());
 
-                conf.getUiOptions().setForwarding_system("HEADLESS");
+                config.getUiOptions().setForwarding_system("HEADLESS");
             }
 
             if (machineDescription.hasOutput()){
-                EmulationEnvironmentHelper.registerDriveForOutput((MachineConfiguration) chosenEnv, machineDescription.getOutputDriveId());
+                EmulationEnvironmentHelper.registerDriveForOutput(config, machineDescription.getOutputDriveId());
             }
 
-            final String sessionId = eaas.createSessionWithOptions(chosenEnv.value(false), options);
+            final String sessionId = eaas.createSessionWithOptions(config.value(false), options);
             if (sessionId == null) {
                 throw new InternalServerErrorException(Response.serverError()
                         .entity(new ErrorInformation("Session initialization has failed, obtained 'null' as session id."))
@@ -853,7 +884,7 @@ public class Components {
 
             machine.start(sessionId);
 
-            List<MachineComponentResponse.RemovableMedia> removableMedia = getRemovableMedialist((MachineConfiguration)chosenEnv);
+            List<MachineComponentResponse.RemovableMedia> removableMedia = getRemovableMedialist(config);
 
             // Register server-sent-event source
             {
@@ -866,9 +897,7 @@ public class Components {
         catch (Exception error) {
             // Trigger cleanup tasks
             cleanups.execute();
-            LOG.log(Level.SEVERE, "Components create machine failed", error);
-            // Return error to the client...
-            throw Components.newInternalError(error);
+            throw error;
         }
     }
 

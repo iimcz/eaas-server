@@ -22,6 +22,7 @@ package de.bwl.bwfla.emil.datatypes.rest;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import de.bwl.bwfla.common.utils.jaxb.JaxbType;
+import de.bwl.bwfla.emil.datatypes.EnvironmentCreateRequest;
 import de.bwl.bwfla.emucomp.api.MediumType;
 
 import javax.xml.bind.annotation.XmlAccessType;
@@ -37,8 +38,11 @@ import java.util.ArrayList;
 @XmlRootElement
 @XmlAccessorType(XmlAccessType.NONE)
 public class MachineComponentRequest extends ComponentWithExternalFilesRequest {
-    @XmlElement(required = true)
+    @XmlElement
     private String environment;
+
+    @XmlElement
+    private EnvironmentCreateRequest environmentConfig;
 
     @XmlElement(defaultValue = "us")
     private String keyboardLayout = "us";
@@ -91,6 +95,14 @@ public class MachineComponentRequest extends ComponentWithExternalFilesRequest {
 
     public String getEnvironment() {
         return environment;
+    }
+
+    public void setEnvironment(String environment) {
+        this.environment = environment;
+    }
+
+    public EnvironmentCreateRequest getEnvironmentConfig() {
+        return environmentConfig;
     }
 
     public String getKeyboardLayout() {
