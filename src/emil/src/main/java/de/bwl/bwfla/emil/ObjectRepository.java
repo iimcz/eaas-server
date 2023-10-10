@@ -305,7 +305,7 @@ public class ObjectRepository extends EmilRest
 						finalObjects.forEach((object) -> {
 							try {
 								final String id = object.getId();
-								if (swHelper.hasSoftwarePackage(id))
+								if (object.isSoftware())
 									return;
 
 								final ObjectListItem item = new ObjectListItem(id);
