@@ -83,6 +83,11 @@ public interface DigitalObjectArchive
 		throw new NotImplementedException("This archive does not support updating the label.");
 	}
 
+	default void markAsSoftware(String objectId, boolean isSoftware) throws BWFLAException
+	{
+		throw new NotImplementedException("This archive does not support updating metadata.");
+	}
+
 	private static String resolveHelper(String resourceId, FileCollection object)
 	{
 		if (object == null)

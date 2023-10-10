@@ -59,6 +59,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -146,6 +147,9 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	{
 		final var counter = UpdateCounts.counter();
 		final var objects = new ConcurrentHashMap<String, MetsObject>();
+		if (cache == null)
+			cache = Collections.emptyMap();
+
 		final Consumer<String> downloader = (objectId) -> {
 			try {
 				final var mets = this.downloadMetsData(objectId);
@@ -484,6 +488,20 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	}
 
 	@Override
+	public void markAsSoftware(String objectId, boolean isSoftware) throws BWFLAException
+	{
+		final var mets = this.loadMetsData(objectId);
+		mets.markAsSoftware(isSoftware);
+
+		// NOTE: Update only cached metadata for now, since that
+		//       attribute is expected to be managed externally!
+		cache.put(mets.getId(), mets);
+
+		if (isSoftware)
+			log.info("Marked object '" + objectId + "' as software");
+	}
+
+	@Override
 	public FileCollection getObjectReference(String objectId)
 	{
 		log.info("Getting object reference for: " + objectId);
@@ -576,6 +594,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 		final var data = this.loadMetsData(objectId);
 		final var mets = MetsUtil.export(data.getMets(), metsExportPrefixer);
 		final var md = new DigitalObjectMetadata(mets);
+		md.markAsSoftware(data.isSoftware());
 		try {
 			final var thumbnail = this.getThumbnail(objectId);
 			if (thumbnail != null)
@@ -612,11 +631,18 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 			final var stream = blob.downloader()
 					.download();
 
+			final String value;
 			try (stream) {
 				final var bytes = stream.readAllBytes();
-				final var mets = new String(bytes, StandardCharsets.UTF_8);
-				return new MetsObject(mets);
+				value = new String(bytes, StandardCharsets.UTF_8);
 			}
+
+			final var mets = new MetsObject(value);
+			final var oldmets = cache.get(objectId);
+			if (oldmets != null)
+				mets.markAsSoftware(oldmets.isSoftware());
+
+			return mets;
 		}
 		catch (IOException error) {
 			throw new BWFLAException("Downloading METS metadata for object '" + objectId + "' failed!", error);

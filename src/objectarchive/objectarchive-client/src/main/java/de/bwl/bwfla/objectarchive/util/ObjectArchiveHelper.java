@@ -107,6 +107,12 @@ public class ObjectArchiveHelper {
 		archive.updateLabel(_archive, id, newLabel);
 	}
 
+	public void markAsSoftware(String _archive, String id, boolean isSoftware) throws BWFLAException
+	{
+		connectArchive();
+		archive.markAsSoftware(_archive, id, isSoftware);
+	}
+
 	public Stream<DigitalObjectMetadata> getObjectMetadata(String _archive) throws BWFLAException
 	{
 		connectArchive();
