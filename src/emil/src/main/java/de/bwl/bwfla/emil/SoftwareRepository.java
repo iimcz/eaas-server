@@ -420,6 +420,7 @@ public class SoftwareRepository extends EmilRest
 				software.setQID(swo.getQID());
 
 				swHelper.addSoftwarePackage(software);
+				objHelper.markAsSoftware(software.getArchive(), software.getObjectId(), true);
 				imageProposer.refreshIndex();
 			}
 			catch(Throwable error) {
