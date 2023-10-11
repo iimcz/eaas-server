@@ -21,6 +21,7 @@ package de.bwl.bwfla.emil;
 
 import com.openslx.eaas.common.concurrent.ParallelProcessors;
 import com.openslx.eaas.common.databind.DataUtils;
+import com.openslx.eaas.common.event.MigrationFinishedEvent;
 import com.openslx.eaas.migration.IMigratable;
 import com.openslx.eaas.migration.MigrationRegistry;
 import com.openslx.eaas.migration.MigrationUtils;
@@ -638,6 +639,13 @@ public class SoftwareRepository extends EmilRest
 		return swo;
 	}
 
+	private void markObjectsAsSoftware() throws Exception
+	{
+		try (final var descriptions = swHelper.getSoftwareDescriptions()) {
+			this.markObjectsAsSoftware(descriptions, true);
+		}
+	}
+
 	private void markObjectsAsSoftware(Stream<SoftwareDescription> entries, boolean isSoftware)
 			throws Exception
 	{
@@ -668,5 +676,10 @@ public class SoftwareRepository extends EmilRest
 	public void register(@Observes MigrationRegistry migrations) throws Exception
 	{
 		migrations.register("move-published-software-to-zeroconf-archive", this::movePublishedSoftwareToZeroConfArchive);
+	}
+
+	public void handle(@Observes MigrationFinishedEvent event) throws Exception
+	{
+		this.markObjectsAsSoftware();
 	}
 }
