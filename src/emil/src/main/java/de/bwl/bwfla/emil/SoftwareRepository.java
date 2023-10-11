@@ -19,6 +19,7 @@
 
 package de.bwl.bwfla.emil;
 
+import com.openslx.eaas.common.concurrent.ParallelProcessors;
 import com.openslx.eaas.common.databind.DataUtils;
 import com.openslx.eaas.migration.IMigratable;
 import com.openslx.eaas.migration.MigrationRegistry;
@@ -45,6 +46,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.tamaya.inject.api.Config;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.Resource;
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
@@ -57,7 +59,10 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.StreamingOutput;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.stream.Stream;
 
@@ -88,6 +93,8 @@ public class SoftwareRepository extends EmilRest
 	@Config(value = "emil.imageproposerservice")
 	private String imageProposerService = null;
 
+	@Resource(lookup = "java:jboss/ee/concurrency/executor/io")
+	private ExecutorService executor;
 
     @PostConstruct
     private void initialize()
@@ -206,12 +213,27 @@ public class SoftwareRepository extends EmilRest
 		@Path("/sync")
 		@Secured(roles = {Role.RESTRICTED})
 		@Produces(MediaType.APPLICATION_JSON)
-		public Response sync()
+		public synchronized Response sync()
 		{
 			try {
+				final var oldEntries = new HashMap<String, SoftwareDescription>();
+				swHelper.getSoftwareDescriptions()
+						.forEach((desc) -> oldEntries.put(desc.getSoftwareId(), desc));
+
 				swHelper.sync();
+
+				final var newEntries = new HashMap<String, SoftwareDescription>();
+				swHelper.getSoftwareDescriptions()
+						.forEach((desc) -> {
+							if (oldEntries.remove(desc.getSoftwareId()) == null)
+								newEntries.put(desc.getSoftwareId(), desc);
+						});
+
+				final var swRepo = SoftwareRepository.this;
+				swRepo.markObjectsAsSoftware(newEntries.values().stream(), true);
+				swRepo.markObjectsAsSoftware(oldEntries.values().stream(), false);
 			}
-			catch (BWFLAException error) {
+			catch (Exception error) {
 				return Emil.internalErrorResponse(error);
 			}
 
@@ -614,6 +636,32 @@ public class SoftwareRepository extends EmilRest
 		swo.setIsOperatingSystem(software.getIsOperatingSystem());
 		swo.setQID(software.getQID());
 		return swo;
+	}
+
+	private void markObjectsAsSoftware(Stream<SoftwareDescription> entries, boolean isSoftware)
+			throws Exception
+	{
+		final var counter = ImportCounts.counter();
+		final var whatmsg = (isSoftware) ? "Marking" : "Unmarking";
+
+		final Consumer<SoftwareDescription> marker = (desc) -> {
+			try {
+				objHelper.markAsSoftware(desc.getArchiveId(), desc.getSoftwareId(), isSoftware);
+				counter.increment(ImportCounts.IMPORTED);
+			}
+			catch (Exception error) {
+				LOG.log(Level.WARNING, whatmsg + " object '" + desc.getSoftwareId() + "' as software failed!", error);
+				counter.increment(ImportCounts.FAILED);
+			}
+		};
+
+		LOG.info(whatmsg + " objects as software...");
+		ParallelProcessors.consumer(marker)
+				.consume(entries, executor);
+
+		final var numMarked = counter.get(ImportCounts.IMPORTED);
+		final var numFailed = counter.get(ImportCounts.FAILED);
+		LOG.info(((isSoftware) ? "Marked " : "Unmarked ") + numMarked + " object(s) as software, failed " + numFailed);
 	}
 
 	@Override
