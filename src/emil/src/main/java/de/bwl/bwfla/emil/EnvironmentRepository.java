@@ -75,6 +75,7 @@ import de.bwl.bwfla.emil.utils.TaskManager;
 import de.bwl.bwfla.emucomp.api.*;
 import de.bwl.bwfla.emucomp.api.MachineConfiguration.NativeConfig;
 import de.bwl.bwfla.imageproposer.client.ImageProposer;
+import de.bwl.bwfla.objectarchive.util.ObjectArchiveHelper;
 import de.bwl.bwfla.softwarearchive.util.SoftwareArchiveHelper;
 import org.apache.tamaya.ConfigurationProvider;
 import org.apache.tamaya.inject.api.Config;
@@ -1499,6 +1500,8 @@ public class EnvironmentRepository extends EmilRest
 		migrations.register("import-legacy-emulator-index", this::importLegacyEmulatorIndex);
 		migrations.register("import-legacy-image-archive-v1", this::importLegacyImageArchiveV1);
 		migrations.register("import-legacy-emulator-archive-v1", this::importLegacyEmulatorArchiveV1);
+		migrations.register("fix-checkpointed-environments-v1", this::fixCheckpointedEnvironmentsV1);
+		migrations.register("fix-object-environments-v1", this::fixObjectEnvironmentsV1);
 	}
 
 	private void removePublishedDuplicatesFromLegacyImageArchiveV1(MigrationConfig mc) throws Exception
@@ -1986,20 +1989,27 @@ public class EnvironmentRepository extends EmilRest
 			if (!name.equals("emulators"))
 				continue;
 
-			final var counter = ImportCounts.counter();
 			final var maxFailureRate = MigrationUtils.getFailureRate(mc);
-			final var basedir = Paths.get(config.get("basepath"))
-					.resolve("images");
+			final var basedir = Paths.get(config.get("basepath"));
 
 			LOG.info("Importing legacy emulator-archive...");
-			this.importLegacyEmulatorImagesV1(basedir, "base", counter);
-
-			final var numImported = counter.get(ImportCounts.IMPORTED);
-			final var numFailed = counter.get(ImportCounts.FAILED);
-			LOG.info("Imported " + numImported + " emulator-image(s), failed " + numFailed);
-			if (!MigrationUtils.acceptable(numImported + numFailed, numFailed, maxFailureRate))
-				throw new BWFLAException("Importing legacy emulato-images failed!");
+			this.importLegacyEmulatorImagesV1(basedir, maxFailureRate);
+			this.importLegacyEmulatorTemplatesV1(basedir, maxFailureRate);
 		}
+	}
+
+	private void importLegacyEmulatorImagesV1(java.nio.file.Path basedir, float maxFailureRate) throws Exception
+	{
+		basedir = basedir.resolve("images");
+
+		final var counter = ImportCounts.counter();
+		this.importLegacyEmulatorImagesV1(basedir, "base", counter);
+
+		final var numImported = counter.get(ImportCounts.IMPORTED);
+		final var numFailed = counter.get(ImportCounts.FAILED);
+		LOG.info("Imported " + numImported + " emulator-image(s), failed " + numFailed);
+		if (!MigrationUtils.acceptable(numImported + numFailed, numFailed, maxFailureRate))
+			throw new BWFLAException("Importing legacy emulator-images failed!");
 	}
 
 	private void importLegacyEmulatorImagesV1(java.nio.file.Path basedir, String kind, MultiCounter counter)
@@ -2007,7 +2017,7 @@ public class EnvironmentRepository extends EmilRest
 	{
 		final var srcdir = basedir.resolve(kind);
 		if (!Files.exists(srcdir)) {
-			LOG.info("No " + kind + "-images found!");
+			LOG.info("No emulator-images (" + kind + ") found!");
 			return;
 		}
 
@@ -2054,5 +2064,252 @@ public class EnvironmentRepository extends EmilRest
 			ParallelProcessors.consumer(filter, importer)
 					.consume(files, executor);
 		}
+	}
+
+	private void importLegacyEmulatorTemplatesV1(java.nio.file.Path basedir, float maxFailureRate) throws Exception
+	{
+		basedir = basedir.resolve("meta-data");
+
+		final var counter = ImportCounts.counter();
+		this.importLegacyEmulatorTemplatesV1(basedir, "template", counter);
+
+		final var numImported = counter.get(ImportCounts.IMPORTED);
+		final var numFailed = counter.get(ImportCounts.FAILED);
+		LOG.info("Imported " + numImported + " emulator-template(s), failed " + numFailed);
+		if (!MigrationUtils.acceptable(numImported + numFailed, numFailed, maxFailureRate))
+			throw new BWFLAException("Importing legacy emulator-templates failed!");
+	}
+
+	private void importLegacyEmulatorTemplatesV1(java.nio.file.Path basedir, String kind, MultiCounter counter)
+			throws Exception
+	{
+		final var srcdir = basedir.resolve(kind);
+		if (!Files.exists(srcdir)) {
+			LOG.info("No emulator-templates (" + kind + ") found!");
+			return;
+		}
+
+		final var templates = imagearchive.api()
+				.v2()
+				.templates();
+
+		final Consumer<java.nio.file.Path> importer = (file) -> {
+			try {
+				// simply import metadata from legacy archive...
+				final var env = Environment.fromValue(Files.readString(file));
+				if (!(env instanceof MachineConfigurationTemplate))
+					return;
+
+				final var template = (MachineConfigurationTemplate) env;
+				final var resources = template.getAbstractDataResource();
+				if (resources != null) {
+					resources.forEach((resource) -> {
+						if (resource instanceof ImageArchiveBinding) {
+							final var binding = (ImageArchiveBinding) resource;
+							binding.setBackendName(null);
+							binding.setUrl(null);
+						}
+					});
+				}
+
+				templates.replace(template.getId(), template);
+				counter.increment(ImportCounts.IMPORTED);
+				LOG.info("Imported emulator-template '" + template.getId() + "'");
+
+				Files.delete(file);
+			}
+			catch (Exception error) {
+				LOG.log(Level.WARNING, "Importing emulator-template '" + file.getFileName() + "' failed!", error);
+				counter.increment(ImportCounts.FAILED);
+			}
+		};
+
+		final Predicate<java.nio.file.Path> filter = (file) -> !Files.isDirectory(file);
+
+		try (final var files = Files.list(srcdir)) {
+			ParallelProcessors.consumer(filter, importer)
+					.consume(files, executor);
+		}
+	}
+
+	private void fixCheckpointedEnvironmentsV1(MigrationConfig mc) throws Exception
+	{
+		// NOTE: legacy code always just appended new checkpoint-binding to the list, without removing
+		//       any existing checkpoint references. Hence, checkpointing an environment restored from
+		//       a checkpoint resulted in all previous checkpoint references left over. Since the order
+		//       in the list is stable between de/serializations of metadata, only each last checkpoint
+		//       binding is valid and should be kept, but all others must be removed!
+
+		final var counter = ImportCounts.counter();
+		final var environments = imagearchive.api()
+				.v2()
+				.environments();
+
+		final Consumer<Environment> fixer = (env) -> {
+			try {
+				final var machine = (MachineConfiguration) env;
+				if (!machine.hasCheckpointBindingId())
+					return;  // not checkpointed!
+
+				final var checkpoints = new ArrayList<String>();
+				final var checkpointBindingId = machine.getCheckpointBindingId();
+				final var resources = machine.getAbstractDataResource();
+				for (final var resource : resources) {
+					if (checkpointBindingId.equals(resource.getId()))
+						checkpoints.add(((ImageArchiveBinding) resource).getImageId());
+				}
+
+				if (checkpoints.size() == 1)
+					return;  // old checkpoints not found!
+
+				if (checkpoints.isEmpty())
+					throw new IllegalStateException("Checkpoint's binding not found!");
+
+				// ignore latest valid checkpoint
+				checkpoints.remove(checkpoints.size() - 1);
+
+				final Predicate<AbstractDataResource> isOldCheckpoint = (r) -> (r instanceof ImageArchiveBinding)
+						&& checkpoints.contains(((ImageArchiveBinding) r).getImageId());
+
+				// remove all old checkpoint-bindings
+				resources.removeIf(isOldCheckpoint);
+				environments.replace(machine.getId(), machine);
+				counter.increment(ImportCounts.IMPORTED);
+
+				final var message = "Removed " + checkpoints.size() + " old checkpoint(s) from environment '"
+						+ env.getId() + "': " + String.join(", ", checkpoints);
+
+				LOG.info(message);
+			}
+			catch (Exception error) {
+				LOG.log(Level.WARNING, "Removing old checkpoints from environment '" + env.getId() + "' failed!", error);
+				counter.increment(ImportCounts.FAILED);
+			}
+		};
+
+		final Predicate<Environment> filter = (env) -> (env instanceof MachineConfiguration);
+
+		LOG.info("Fixing checkpointed environments...");
+		try (final var envs = environments.fetch()) {
+			ParallelProcessors.consumer(filter, fixer)
+					.consume(envs.iterator(), executor);
+		}
+
+		final var numFixed = counter.get(ImportCounts.IMPORTED);
+		final var numFailed = counter.get(ImportCounts.FAILED);
+		final var maxFailureRate = MigrationUtils.getFailureRate(mc);
+		LOG.info("Fixed " + numFixed + " checkpointed environment(s), failed " + numFailed);
+		if (!MigrationUtils.acceptable(numFixed + numFailed, numFailed, maxFailureRate))
+			throw new BWFLAException("Fixing checkpointed environments failed!");
+	}
+
+	private void fixObjectEnvironmentsV1(MigrationConfig mc) throws Exception
+	{
+		final var counter = ImportCounts.counter();
+		final var machines = imagearchive.api()
+				.v2()
+				.machines();
+
+		final var objectArchiveAddress = ConfigurationProvider.getConfiguration()
+				.get("ws.objectarchive");
+
+		final var objects = new ObjectArchiveHelper(objectArchiveAddress);
+		final var replacements = Arrays.asList("", "-");
+
+		// initialize connection
+		objects.getArchives();
+
+		final Consumer<MachineConfiguration> fixer = (machine) -> {
+			try {
+				final var resources = machine.getAbstractDataResource();
+				final var updates = new ArrayList<String>();
+
+				// check all object-archive bindings...
+				for (final var resource : resources) {
+					if (!(resource instanceof ObjectArchiveBinding))
+						continue;
+
+					final var binding = (ObjectArchiveBinding) resource;
+					final var driveDataRefPrefix = "binding://" + binding.getId();
+					final var object = objects.getObjectReference(binding.getArchive(), binding.getObjectId());
+
+					// find corresponding object-reference in available drives...
+					for (final var drive : machine.getDrive()) {
+						final var driveDataRef = drive.getData();
+						if (driveDataRef == null || driveDataRef.isEmpty())
+							continue;
+
+						if (!driveDataRef.startsWith(driveDataRefPrefix))
+							continue;
+
+						// legacy references contained filenames, but now file-ids have to be used instead
+						if (driveDataRef.startsWith("FID-", driveDataRefPrefix.length() + 1))
+							break;  // looks like a file-id is already used
+
+						// NOTE: some legacy filenames can contain URL unsafe chars (e.g. " ").
+						//       These are expected to be fixed by a related migration in object-archive,
+						//       hence multiple filename variants have to be considered here too!
+						final var filename = driveDataRef.substring(driveDataRefPrefix.length() + 1);
+						final var isFilenameValid = !filename.contains(" ");
+						var isFilenameFound = false;
+
+						// find and replace a filename with a corresponding file-id...
+						for (final var file : object.files) {
+							final var url = file.getUrl();
+							if (isFilenameValid) {
+								if (url.endsWith(filename))
+									isFilenameFound = true;
+							}
+							else {
+								// check filename variants...
+								for (final var replacement : replacements) {
+									if (url.endsWith(filename.replace(" ", replacement))) {
+										isFilenameFound = true;
+										break;
+									}
+								}
+							}
+
+							if (isFilenameFound) {
+								drive.setData(driveDataRefPrefix + "/" + file.getId());
+								updates.add("Replaced object-reference: " + driveDataRef + " -> " + drive.getData());
+								break;
+							}
+						}
+
+						if (!isFilenameFound)
+							throw new IllegalStateException("Referenced object not found: " + driveDataRef);
+					}
+				}
+
+				if (updates.isEmpty())
+					return;
+
+				machines.replace(machine.getId(), machine);
+				counter.increment(ImportCounts.IMPORTED);
+
+				final var message = "Fixed " + updates.size() + " object-reference(s) in environment '"
+						+ machine.getId() + "':\n    " + String.join("\n    ", updates);
+
+				LOG.info(message);
+			}
+			catch (Exception error) {
+				LOG.log(Level.WARNING, "Fixing object-references in environment '" + machine.getId() + "' failed!", error);
+				counter.increment(ImportCounts.FAILED);
+			}
+		};
+
+		LOG.info("Fixing object-environments...");
+		try (final var envs = machines.fetch()) {
+			ParallelProcessors.consumer(fixer)
+					.consume(envs.iterator(), executor);
+		}
+
+		final var numFixed = counter.get(ImportCounts.IMPORTED);
+		final var numFailed = counter.get(ImportCounts.FAILED);
+		final var maxFailureRate = MigrationUtils.getFailureRate(mc);
+		LOG.info("Fixed " + numFixed + " object-environment(s), failed " + numFailed);
+		if (!MigrationUtils.acceptable(numFixed + numFailed, numFailed, maxFailureRate))
+			throw new BWFLAException("Fixing object-environments failed!");
 	}
 }
