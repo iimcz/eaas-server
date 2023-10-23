@@ -36,7 +36,6 @@ import org.apache.tamaya.inject.ConfigurationInjection;
 import org.apache.tamaya.inject.api.Config;
 
 import static de.bwl.bwfla.objectarchive.conf.ObjectArchiveSingleton.ZEROCONF_ARCHIVE_NAME;
-import static de.bwl.bwfla.objectarchive.conf.ObjectArchiveSingleton.tmpArchiveName;
 
 @Stateless
 @MTOM
