@@ -69,6 +69,7 @@ public class ObjectArchiveSingleton
 	public static volatile boolean 				confValid = false;
 	//public static volatile ObjectArchiveConf	CONF;
 	public static ConcurrentHashMap<String, DigitalObjectArchive> archiveMap = null;
+	public static ConcurrentHashMap<String, DigitalObjectArchive> userArchiveMap = null;
 	// public static ConcurrentHashMap<String, List<FileCollection>> archiveContent = null;
 	@Inject
 	@Config(value="objectarchive.objectarchiveconfdir")
@@ -167,6 +168,7 @@ public class ObjectArchiveSingleton
 		}
 		
 		ObjectArchiveSingleton.archiveMap = new ConcurrentHashMap<>();
+		ObjectArchiveSingleton.userArchiveMap = new ConcurrentHashMap<>();
 		for(DigitalObjectArchive a : archives)
 		{
 			ObjectArchiveSingleton.archiveMap.put(a.getName(), a);

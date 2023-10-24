@@ -2,7 +2,6 @@ package de.bwl.bwfla.objectarchive;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -86,6 +85,10 @@ public class ObjectArchiveFacadeWS
 
 		DigitalObjectArchive a = ObjectArchiveSingleton.archiveMap.get(archive);
 		if(a != null)
+			return a;
+
+		a = ObjectArchiveSingleton.userArchiveMap.get(archive);
+		if (a != null)
 			return a;
 
 		if(userArchiveEnabled && !archive.startsWith(USERARCHIVEPRIFIX))
@@ -268,31 +271,34 @@ public class ObjectArchiveFacadeWS
 			return null;
 		}
 
-		Set<String> keys = ObjectArchiveSingleton.archiveMap.keySet();
-		ArrayList<String> result = new ArrayList<>();
-		for (String key : keys)
-		{
-			if(key.equals(tmpArchiveName))
-				continue;
-
-			result.add(key);
-		}
-		return result;
+		final var archives = ObjectArchiveSingleton.archiveMap;
+		final var usrarchives = ObjectArchiveSingleton.userArchiveMap;
+		final var names = new ArrayList<String>(archives.size() + usrarchives.size());
+		names.addAll(archives.keySet());
+		names.addAll(usrarchives.keySet());
+		return names;
 	}
 
 	public void registerUserArchive(String userId) throws BWFLAException {
 		final var archives = ObjectArchiveSingleton.archiveMap;
+		final var usrarchives = ObjectArchiveSingleton.userArchiveMap;
 		try {
 			final var zeroconf = archives.get(ZEROCONF_ARCHIVE_NAME);
 			final var s3desc = (zeroconf instanceof DigitalObjectS3Archive) ?
 					((DigitalObjectS3Archive) zeroconf).getDescriptor() : null;
 
-			final var usrdesc = DigitalObjectUserArchiveDescriptor.create(userId, s3desc);
-			archives.put(userId, new DigitalObjectUserArchive(usrdesc));
+			final var userArchiveId = this.getArchiveIdForUser(userId);
+			final var usrdesc = DigitalObjectUserArchiveDescriptor.create(userArchiveId, s3desc);
+			usrarchives.put(userArchiveId, new DigitalObjectUserArchive(usrdesc));
 		}
 		catch (Exception error) {
 			throw new BWFLAException(error);
 		}
+	}
+
+	private String getArchiveIdForUser(String userId)
+	{
+		return (userId.startsWith(USERARCHIVEPRIFIX)) ? userId : USERARCHIVEPRIFIX + userId;
 	}
 
 	private <T> DataHandler toDataHandler(Stream<T> source, Class<T> klass, String name)
