@@ -1,6 +1,8 @@
 package de.bwl.bwfla.objectarchive;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.logging.Level;
@@ -276,6 +278,26 @@ public class ObjectArchiveFacadeWS
 		final var names = new ArrayList<String>(archives.size() + usrarchives.size());
 		names.addAll(archives.keySet());
 		names.addAll(usrarchives.keySet());
+		return names;
+	}
+
+	public Collection<String> getArchivesForUser(String userId) {
+		if (!ObjectArchiveSingleton.confValid) {
+			LOG.severe("ObjectArchive not configured");
+			return null;
+		}
+
+		final var userArchiveId = this.getArchiveIdForUser(userId);
+		final var usrarchives = ObjectArchiveSingleton.userArchiveMap;
+		final var names = new HashSet<>(ObjectArchiveSingleton.archiveMap.keySet());
+		names.remove("default");
+		// remove zero conf archive if user-context is available
+		if (userArchiveEnabled)
+			names.remove("zero conf");
+
+		if (usrarchives.containsKey(userArchiveId))
+			names.add(userArchiveId);
+
 		return names;
 	}
 
