@@ -158,6 +158,11 @@ public class ObjectArchiveFacadeWS
 		a.updateLabel(id, label);
 	}
 
+	public void markAsSoftware(String archive, String id, boolean isSoftware) throws BWFLAException {
+		DigitalObjectArchive a =  getArchive(archive);
+		a.markAsSoftware(id, isSoftware);
+	}
+
 	public DigitalObjectMetadata getObjectMetadata(String archive, String id) throws BWFLAException {
 		DigitalObjectArchive a = getArchive(archive);
 		return a.getMetadata(id);

@@ -32,6 +32,9 @@ public class DigitalObjectMetadata extends JaxbType{
 	private String summary;
 
 	@XmlElement
+	boolean isSoftware = false;
+
+	@XmlElement
 	private String wikiDataId;
 
 	@XmlElement
@@ -96,6 +99,16 @@ public class DigitalObjectMetadata extends JaxbType{
 
 	public void setSummary(String summary) {
 		this.summary = summary;
+	}
+
+	public boolean isSoftware()
+	{
+		return isSoftware;
+	}
+
+	public void markAsSoftware(boolean isSoftware)
+	{
+		this.isSoftware = isSoftware;
 	}
 
 	public HashMap<String, String> getCustomData() {

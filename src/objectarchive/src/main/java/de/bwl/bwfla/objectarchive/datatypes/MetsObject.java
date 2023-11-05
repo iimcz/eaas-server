@@ -54,6 +54,8 @@ public class MetsObject {
     Mets metsRoot;
     private String wikiId = null;
 
+    private boolean isSoftware = false;
+
     public String getId()
     {
         return metsRoot.getID();
@@ -66,6 +68,16 @@ public class MetsObject {
 
     public void setLabel(String newLabel) {
         metsRoot.setLabel1(newLabel);
+    }
+
+    public boolean isSoftware()
+    {
+        return isSoftware;
+    }
+
+    public void markAsSoftware(boolean isSoftware)
+    {
+        this.isSoftware = isSoftware;
     }
 
     public String toString() {

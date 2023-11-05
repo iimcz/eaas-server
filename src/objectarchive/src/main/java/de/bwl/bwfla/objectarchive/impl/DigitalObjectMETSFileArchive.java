@@ -107,17 +107,37 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 		importObject(mets.toString());
 	}
 
+	@Override
+	public void markAsSoftware(String objectId, boolean isSoftware) throws BWFLAException
+	{
+		// NOTE: Update only cached metadata for now, since that
+		//       attribute is expected to be managed externally!
+		objects.computeIfPresent(objectId, (unused, mets) -> {
+			mets.markAsSoftware(isSoftware);
+			return mets;
+		});
+
+		if (isSoftware)
+			log.info("Marked object '" + objectId + "' as software");
+	}
+
 	private Map<String, MetsObject> load()
 	{
 		int numLoaded = 0;
 		int numFailed = 0;
 
 		final var entries = new ConcurrentHashMap<String, MetsObject>();
+		if (objects == null)
+			objects = Collections.emptyMap();
 
 		for(File mets: metaDataDir.listFiles())
 		{
 			try {
 				MetsObject obj = new MetsObject(mets);
+				MetsObject oldobj = objects.get(obj.getId());
+				if (oldobj != null)
+					obj.markAsSoftware(oldobj.isSoftware());
+
 				entries.put(obj.getId(), obj);
 				++numLoaded;
 			} catch (BWFLAException e) {
@@ -176,6 +196,7 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 		String label = obj.getLabel();
 
 		DigitalObjectMetadata md = new DigitalObjectMetadata(id, label, label);
+		md.markAsSoftware(obj.isSoftware());
 		return md;
 	}
 
@@ -298,7 +319,11 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 				final var file = new File(metaDataDir, objectId);
 				try {
 					final var mets = new MetsObject(file);
-					objects.put(mets.getId(), mets);
+					objects.merge(mets.getId(), mets, (oldmets, newmets) -> {
+						newmets.markAsSoftware(oldmets.isSoftware());
+						return newmets;
+					});
+
 					++numLoaded;
 				} catch (Exception error) {
 					log.log(Level.WARNING, "Parsing METS file '" + file.getAbsolutePath() + "' failed!", error);

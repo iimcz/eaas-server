@@ -19,6 +19,7 @@
 package de.bwl.bwfla.emil;
 
 import com.openslx.eaas.common.event.EventTrigger;
+import com.openslx.eaas.common.event.MigrationFinishedEvent;
 import com.openslx.eaas.common.event.ServerStartupEvent;
 import com.openslx.eaas.migration.MigrationManager;
 
@@ -80,6 +81,8 @@ class ServerLifecycleHooks
 				// execute migrations...
 				MigrationManager.instance()
 						.execute();
+
+				EventTrigger.fire(new MigrationFinishedEvent());
 
 				logger.info("Application started!");
 				started.complete(true);
