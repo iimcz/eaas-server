@@ -1,6 +1,7 @@
 package de.bwl.bwfla.objectarchive.util;
 
 import java.net.URL;
+import java.util.Collection;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -244,6 +245,11 @@ public class ObjectArchiveHelper {
 	public List<String> getArchives() throws BWFLAException {
 		connectArchive();
 		return archive.getArchives();
+	}
+
+	public List<String> getArchivesForUser(String userId) throws BWFLAException {
+		connectArchive();
+		return archive.getArchivesForUser(userId);
 	}
 
 	public String getHost()

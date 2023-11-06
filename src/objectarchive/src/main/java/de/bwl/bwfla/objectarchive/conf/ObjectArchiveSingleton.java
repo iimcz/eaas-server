@@ -69,6 +69,7 @@ public class ObjectArchiveSingleton
 	public static volatile boolean 				confValid = false;
 	//public static volatile ObjectArchiveConf	CONF;
 	public static ConcurrentHashMap<String, DigitalObjectArchive> archiveMap = null;
+	public static ConcurrentHashMap<String, DigitalObjectArchive> userArchiveMap = null;
 	// public static ConcurrentHashMap<String, List<FileCollection>> archiveContent = null;
 	@Inject
 	@Config(value="objectarchive.objectarchiveconfdir")
@@ -90,8 +91,6 @@ public class ObjectArchiveSingleton
 	@Config(value="objectarchive.default_archive")
 	private String defaultArchive;
 
-	public static final String tmpArchiveDir = "emil-temp-objects";
-	public static final String tmpArchiveName = "emil-temp-objects";
 	public static final String remoteArchiveName = "Remote Objects";
 	public static final String ZEROCONF_ARCHIVE_NAME = "zero conf";
 
@@ -158,10 +157,6 @@ public class ObjectArchiveSingleton
 		if(!defaultObjectsPath.exists())
 			throw new ObjectArchiveInitException("no archive configuration found");
 
-		// add internal upload archive
-		File tempObjectPath = new File(serverdatadir, tmpArchiveDir);
-		archives.add(new DigitalObjectFileArchive(tmpArchiveName, tempObjectPath.getAbsolutePath(), false));
-
 		// add mets remote
 		File remoteMetsMd = new File(serverdatadir, remoteMetsObjects);
 		try {
@@ -173,6 +168,7 @@ public class ObjectArchiveSingleton
 		}
 		
 		ObjectArchiveSingleton.archiveMap = new ConcurrentHashMap<>();
+		ObjectArchiveSingleton.userArchiveMap = new ConcurrentHashMap<>();
 		for(DigitalObjectArchive a : archives)
 		{
 			ObjectArchiveSingleton.archiveMap.put(a.getName(), a);

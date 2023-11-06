@@ -207,16 +207,10 @@ public class ObjectRepository extends EmilRest
 		public ObjectArchivesResponse list()
 		{
 			try {
-				// FIXME: do we need to refresh the list of archives here?
-				objArchives = new HashSet<>(objHelper.getArchives());
-
-				final String _defaultArchive = ObjectRepository.this.manageUserCtx(defaultArchive);
-				final List<String> archives = objArchives.stream()
-						.filter(e -> !(userArchiveEnabled && e.startsWith(USER_ARCHIVE_PREFIX) && !e.equals(_defaultArchive)))
-						.filter(e -> !e.equals("default"))
-						// remove zero conf archive if usercontext is available
-						.filter(e -> !(!_defaultArchive.equals(defaultArchive) && e.equals("zero conf")))
-						.collect(Collectors.toList());
+				final var userArchive = ObjectRepository.this.manageUserCtx(defaultArchive);
+				final var userArchiveAvailable = !userArchive.equals(defaultArchive);
+				final var archives = (userArchiveAvailable) ?
+						objHelper.getArchivesForUser(userArchive) : objHelper.getArchives();
 
 				ObjectArchivesResponse response = new ObjectArchivesResponse();
 				response.setArchives(archives);
