@@ -33,6 +33,7 @@ import de.bwl.bwfla.emucomp.client.ComponentClient;
 import org.apache.tamaya.ConfigurationProvider;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.Resource;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.ws.rs.*;
@@ -42,12 +43,16 @@ import java.net.URI;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutorService;
 
 
 @Path("/sessions")
 @ApplicationScoped
 public class Sessions
 {
+	@Resource(lookup = "java:jboss/ee/concurrency/executor/io")
+	protected ExecutorService executor;
+
 	@Inject
 	private SessionManager sessions = null;
 
@@ -87,7 +92,7 @@ public class Sessions
 	@Secured(roles = {Role.RESTRICTED})
 	public CompletionStage<Void> deleteAsync(@PathParam("id") String id)
 	{
-		return CompletableFuture.runAsync(() -> this.delete(id));
+		return CompletableFuture.runAsync(() -> this.delete(id), executor);
 	}
 
 	public void delete(String id)
