@@ -2625,9 +2625,11 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 			String nativeString = nativeConfig.getValue();
 			if(nativeConfig.getLinebreak() != null)
 			{
-				nativeString = nativeString.replace("\n", "").replace("\r", "");
 				nativeString = nativeString.replace(nativeConfig.getLinebreak(), "\n");
 			}
+
+			nativeString = nativeString.replace("\r", "")
+					.replaceAll("\n+", "\n");
 
 			// search for binding:// and replace all occurrences with the
 			// actual path
