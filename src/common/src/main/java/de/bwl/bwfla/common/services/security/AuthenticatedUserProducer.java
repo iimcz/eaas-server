@@ -27,10 +27,6 @@ public class AuthenticatedUserProducer {
     @Config(value = "authentication.userRoleLabel")
     private String userRoleLabel;
 
-    @Inject
-    @Config(value = "authentication.keycloakAdminUser")
-    private String keycloakAdminUser;
-
     public AuthenticatedUserProducer() {}
 
     public void handleAuthenticationEvent(@Observes @AuthenticatedUser AuthenticationFilter.JwtLoginEvent event) {
@@ -64,10 +60,7 @@ public class AuthenticatedUserProducer {
         if(nameC != null)
             authenticatedUser.setName(nameC.asString());
 
-        if(authenticatedUser.getUsername() != null && authenticatedUser.getUsername().equals(keycloakAdminUser)) {
-            authenticatedUser.setRole(Role.ADMIN);
-        } else if(!adminRoleLabel.isEmpty()) {
-
+        if (!adminRoleLabel.isEmpty()) {
             // reset role if we require user roles
             if(!userRoleLabel.isEmpty())
                 authenticatedUser.setRole(Role.PUBLIC);
