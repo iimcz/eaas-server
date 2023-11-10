@@ -302,7 +302,6 @@ public class EnvironmentsV2
 			public ImageArchiveBinding binding;
 		}
 
-		final var imageids = new ArrayList<String>();
 		final var tasks = new ArrayList<ImportTask>();
 		try {
 			if (data == null)
@@ -359,8 +358,6 @@ public class EnvironmentsV2
 				binding.setBackendName(null);
 				binding.setType(null);
 				binding.setUrl(null);
-
-				imageids.add(imageid);
 			}
 
 			// import metadata
@@ -368,6 +365,8 @@ public class EnvironmentsV2
 			logger.info("Replicated environment '" + environment.getId() + "'");
 		}
 		catch (Exception error) {
+			logger.warning("Aborting replication of environment '" + environment.getId() + "'...");
+
 			// abort pending import tasks!
 			tasks.forEach((task) -> {
 				try {
@@ -379,16 +378,7 @@ public class EnvironmentsV2
 				}
 			});
 
-			// remove all imported images!
-			imageids.forEach((imageid) -> {
-				try {
-					archive.images()
-							.delete(imageid);
-				}
-				catch (Exception exception) {
-					logger.log(Level.WARNING, "Cleaning up partial import failed!", exception);
-				}
-			});
+			logger.warning("Aborted " + tasks.size() + " pending import(s)!");
 
 			if (error instanceof BWFLAException)
 				throw (BWFLAException) error;
