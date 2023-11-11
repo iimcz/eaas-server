@@ -130,8 +130,9 @@ public class BlobIndexer<T extends BlobDescriptor> implements AutoCloseable
 		try (blobs) {
 			// process each blob stored at given location...
 			for (final var iter = blobs.iterator(); iter.hasNext();) {
+				BlobDescription blob = null;
 				try {
-					var blob = iter.next();
+					blob = iter.next();
 					if (prefix.equals(blob.name()))
 						continue;  // skip base-dir!
 
@@ -145,7 +146,18 @@ public class BlobIndexer<T extends BlobDescriptor> implements AutoCloseable
 					result.onInsertion();
 				}
 				catch (Exception error) {
-					logger.log(Level.WARNING, "Processing blob failed!", error);
+					final String name, bucket;
+					if (blob != null) {
+						name = blob.name();
+						bucket = blob.bucket();
+					}
+					else {
+						name = "unknown";
+						bucket = location.bucket()
+								.name();
+					}
+
+					logger.log(Level.WARNING, "Processing blob '" + name + "' from bucket '" + bucket + "' failed!", error);
 
 					result.onFailure();
 					if (result.getNumFailures() > MAX_NUM_FAILURES) {
