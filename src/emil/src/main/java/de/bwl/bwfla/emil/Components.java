@@ -1176,7 +1176,8 @@ public class Components {
 
         try {
             final var location = this.resolveResource(kind, resourceId, options);
-            LOG.info("Resolving '" + resourceId + "' -> " + method.name() + " " + location);
+            final var what = (kind.endsWith("s")) ? kind.substring(0, kind.length() - 1) : kind;
+            LOG.info("Resolving " + what + " '" + resourceId + "' -> " + method.name() + " " + location);
             return Response.temporaryRedirect(new URI(location))
                     .build();
         }
