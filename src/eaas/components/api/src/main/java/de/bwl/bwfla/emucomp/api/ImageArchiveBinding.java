@@ -1,5 +1,6 @@
 package de.bwl.bwfla.emucomp.api;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import de.bwl.bwfla.common.utils.jaxb.JaxbType;
 
 import javax.xml.bind.JAXBException;
@@ -9,6 +10,7 @@ import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
 import javax.xml.bind.annotation.XmlType;
 
+@JsonIgnoreProperties("urlPrefix")
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "imageArchiveBinding", namespace = "http://bwfla.bwl.de/common/datatypes", propOrder = {
 		"imageId", "type", "fileSystemType", "backendName" })
