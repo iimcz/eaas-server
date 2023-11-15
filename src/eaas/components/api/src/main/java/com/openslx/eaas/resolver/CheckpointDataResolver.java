@@ -19,39 +19,10 @@
 package com.openslx.eaas.resolver;
 
 
-public class DataResolvers
+public class CheckpointDataResolver extends ImageDataResolver
 {
-	public static ImageDataResolver images()
+	public CheckpointDataResolver()
 	{
-		return IMAGES;
+		super("checkpoints");
 	}
-
-	public static EmulatorDataResolver emulators()
-	{
-		return EMULATORS;
-	}
-
-	public static ObjectDataResolver objects()
-	{
-		return OBJECTS;
-	}
-
-	public static RomDataResolver roms()
-	{
-		return ROMS;
-	}
-
-	public static CheckpointDataResolver checkpoints()
-	{
-		return CHECKPOINTS;
-	}
-
-
-	// ===== Internal Helpers ====================
-
-	private static final ImageDataResolver IMAGES = new ImageDataResolver();
-	private static final EmulatorDataResolver EMULATORS = new EmulatorDataResolver();
-	private static final ObjectDataResolver OBJECTS = new ObjectDataResolver();
-	private static final RomDataResolver ROMS = new RomDataResolver();
-	private static final CheckpointDataResolver CHECKPOINTS = new CheckpointDataResolver();
 }
