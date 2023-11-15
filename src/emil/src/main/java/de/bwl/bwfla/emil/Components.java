@@ -1112,7 +1112,21 @@ public class Components {
         String resolve(String id, ResolveOptionsV2 options) throws BWFLAException;
     }
 
-    private String resolveImage(String resourceId, ResolveOptionsV2 options)
+    private String resolveResource(String resourceId, IResolver[] resolvers, ResolveOptionsV2 options)
+    {
+        for (var resolver : resolvers) {
+            try {
+                return resolver.resolve(resourceId, options);
+            }
+            catch (Exception error) {
+                // Try next one!
+            }
+        }
+
+        throw new NotFoundException();
+    }
+
+    private String resolveImageResource(String resourceId, ResolveOptionsV2 options)
     {
         final var archive = emilEnvRepo.getImageArchive()
                 .api()
@@ -1125,16 +1139,7 @@ public class Components {
                 archive.checkpoints()::resolve,
         };
 
-        for (var resolver : resolvers) {
-            try {
-                return resolver.resolve(resourceId, options);
-            }
-            catch (Exception error) {
-                // Try next one!
-            }
-        }
-
-        throw new NotFoundException();
+        return this.resolveResource(resourceId, resolvers, options);
     }
 
     private String resolveObjectResource(String resourceId, ResolveOptionsV2 options) throws Exception
@@ -1153,7 +1158,7 @@ public class Components {
         resourceId = DataResolver.decode(resourceId);
         switch (kind) {
             case "images":
-                return this.resolveImage(resourceId, options);
+                return this.resolveImageResource(resourceId, options);
             case "objects":
                 return this.resolveObjectResource(resourceId, options);
             default:
