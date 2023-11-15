@@ -178,6 +178,10 @@ public class BindingsManager
 				location = DataResolvers.roms()
 						.resolve(componentId, (ImageArchiveBinding) resource);
 			}
+			else if (resource.getId().equals("checkpoint")) {
+				location = DataResolvers.checkpoints()
+						.resolve(componentId, (ImageArchiveBinding) resource);
+			}
 			else {
 				location = DataResolvers.images()
 						.resolve(componentId, (ImageArchiveBinding) resource);
