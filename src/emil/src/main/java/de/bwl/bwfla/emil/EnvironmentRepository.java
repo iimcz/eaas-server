@@ -235,6 +235,12 @@ public class EnvironmentRepository extends EmilRest
 		return new Roms();
 	}
 
+	@Path("/checkpoints")
+	public Checkpoints checkpoints()
+	{
+		return new Checkpoints();
+	}
+
 	@GET
 	@Path("/db-migration")
 	@Secured(roles={Role.RESTRICTED})
@@ -531,6 +537,14 @@ public class EnvironmentRepository extends EmilRest
 		public Roms()
 		{
 			super("rom", imagearchive.api().v2().roms());
+		}
+	}
+
+	public class Checkpoints extends ResolvableResource
+	{
+		public Checkpoints()
+		{
+			super("checkpoint", imagearchive.api().v2().checkpoints());
 		}
 	}
 
