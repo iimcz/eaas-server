@@ -1142,6 +1142,21 @@ public class Components {
         return this.resolveResource(resourceId, resolvers, options);
     }
 
+    private String resolveRomResource(String resourceId, ResolveOptionsV2 options)
+    {
+        final var archive = emilEnvRepo.getImageArchive()
+                .api()
+                .v2();
+
+        // resource can be located at any of the following endpoints
+        final var resolvers = new IResolver[] {
+                archive.roms()::resolve,
+                archive.images()::resolve,
+        };
+
+        return this.resolveResource(resourceId, resolvers, options);
+    }
+
     private String resolveObjectResource(String resourceId, ResolveOptionsV2 options) throws Exception
     {
         // Expected: <archive-id>/<object-id>/<resource-id>
@@ -1159,6 +1174,8 @@ public class Components {
         switch (kind) {
             case "images":
                 return this.resolveImageResource(resourceId, options);
+            case "roms":
+                return this.resolveRomResource(resourceId, options);
             case "objects":
                 return this.resolveObjectResource(resourceId, options);
             default:
