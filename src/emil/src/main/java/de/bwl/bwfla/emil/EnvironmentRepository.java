@@ -441,8 +441,13 @@ public class EnvironmentRepository extends EmilRest
 		}
 	}
 
-	public class Images
+	public class Images extends ResolvableResource
 	{
+		public Images()
+		{
+			super("image", imagearchive.api().v2().images());
+		}
+
 		/** List all available images */
 		@GET
 		@Secured(roles={Role.PUBLIC})
@@ -487,50 +492,6 @@ public class EnvironmentRepository extends EmilRest
                         .replace(userMetaData.id(), updatedMetadata, ImageArchiveMappers.OBJECT_TO_JSON_TREE);
 
 			return Response.status(Status.OK).build();
-		}
-
-		@HEAD
-		@Path("/{imgid}/url")
-		@Secured(roles={Role.PUBLIC})
-		public Response resolveHEAD(@PathParam("imgid") String imgid)
-		{
-			return this.resolve(imgid, HttpMethod.HEAD);
-		}
-
-		@GET
-		@Path("/{imgid}/url")
-		@Secured(roles={Role.PUBLIC})
-		public Response resolveGET(@PathParam("imgid") String imgid)
-		{
-			return this.resolve(imgid, HttpMethod.GET);
-		}
-
-		private Response resolve(String imgid, String method)
-		{
-			try {
-				final var userctx = EnvironmentRepository.this.getUserContext();
-				final var options = new ResolveOptionsV2()
-						.setMethod(AccessMethodV2.valueOf(method));
-
-				if (userctx.isAvailable()) {
-					options.userinfo()
-							.setTenantId(userctx.getTenantId())
-							.setUserId(userctx.getUserId());
-				}
-
-				final var location = imagearchive.api()
-						.v2()
-						.images()
-						.resolve(imgid, options);
-
-				LOG.info("Resolving image '" + imgid + "' -> " + method + " " + location);
-				return Response.temporaryRedirect(new URI(location))
-						.build();
-			}
-			catch (Exception error) {
-				LOG.log(Level.WARNING, "Resolving image '" + imgid + "' failed!", error);
-				throw new NotFoundException();
-			}
 		}
 
 		/** Create a new environment */
