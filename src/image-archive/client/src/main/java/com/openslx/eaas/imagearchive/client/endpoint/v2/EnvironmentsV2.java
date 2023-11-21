@@ -313,9 +313,7 @@ public class EnvironmentsV2
 					final var binding = (ImageArchiveBinding) adr;
 					if (binding.getUrl() == null) {
 						// FIXME: assume, that we replicate from local archive for now
-						final var location = DataResolvers.images()
-								.resolve(binding, userctxt);
-
+						final var location = DataResolvers.resolve(binding, userctxt);
 						binding.setUrl(location);
 					}
 
