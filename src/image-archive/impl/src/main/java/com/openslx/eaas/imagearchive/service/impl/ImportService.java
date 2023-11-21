@@ -625,7 +625,13 @@ public class ImportService implements AutoCloseable
 					.lookup(target.kind());
 
 			// does the target blob already exist?
-			return service.lookup(name) != null;
+			final var descriptor = service.lookup(name);
+			if (descriptor == null)
+				return false;
+
+			// check if target location matches too
+			final var location = target.location();
+			return (location == null) || location.equals(descriptor.location());
 		}
 	}
 
