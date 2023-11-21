@@ -8,6 +8,7 @@ import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.XmlTransient;
 import javax.xml.bind.annotation.XmlType;
 
 @JsonIgnoreProperties("urlPrefix")
@@ -29,6 +30,17 @@ public class ImageArchiveBinding extends Binding
 	@XmlElement(namespace = "http://bwfla.bwl.de/common/datatypes", required = false)
 	protected String fileSystemType;
 
+	@XmlTransient
+	protected Kind kind = null;
+
+	public enum Kind
+	{
+		CHECKPOINT,
+		EMULATOR,
+		IMAGE,
+		ROM,
+	}
+
 	public ImageArchiveBinding()
 	{
 		backendName = null;
@@ -49,7 +61,7 @@ public class ImageArchiveBinding extends Binding
 		this.type = type;
 		this.fileSystemType = fileSystemType;
 	}
-	
+
 	public void copy(ImageArchiveBinding b)
 	{
 		this.backendName = b.backendName;
@@ -75,6 +87,32 @@ public class ImageArchiveBinding extends Binding
 
 		if (other.fileSystemType != null)
 			this.fileSystemType = other.fileSystemType;
+	}
+
+	@Override
+	public void setId(String newid)
+	{
+		super.setId(newid);
+		this.updateKind();
+	}
+
+	private void updateKind()
+	{
+		if (id.equals("emucon-rootfs"))
+			kind = Kind.EMULATOR;
+		else if (id.startsWith("rom-"))
+			kind = Kind.ROM;
+		else if (id.equals("checkpoint"))
+			kind = Kind.CHECKPOINT;
+		else kind = Kind.IMAGE;
+	}
+
+	public Kind getKind()
+	{
+		if (kind == null)
+			this.updateKind();
+
+		return kind;
 	}
 
 	public String getBackendName() {
