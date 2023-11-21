@@ -322,7 +322,7 @@ public class EnvironmentsV2
 							.setUrl(binding.getUrl());
 
 					request.target()
-							.setKind(ImportTargetV2.Kind.IMAGE)
+							.setKind(EnvironmentsV2.convert(binding.getKind()))
 							.setName(binding.getImageId());
 
 					if (options != null) {
@@ -490,5 +490,21 @@ public class EnvironmentsV2
 
 		return archive.imports()
 				.await(request, 1, TimeUnit.HOURS);
+	}
+
+	private static ImportTargetV2.Kind convert(ImageArchiveBinding.Kind kind)
+	{
+		switch (kind) {
+			case CHECKPOINT:
+				return ImportTargetV2.Kind.CHECKPOINT;
+			case EMULATOR:
+				return ImportTargetV2.Kind.EMULATOR;
+			case IMAGE:
+				return ImportTargetV2.Kind.IMAGE;
+			case ROM:
+				return ImportTargetV2.Kind.ROM;
+			default:
+				throw new IllegalArgumentException("Unknown kind: " + kind);
+		}
 	}
 }
