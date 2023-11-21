@@ -169,24 +169,8 @@ public class BindingsManager
 		 */
 		if (resource instanceof ImageArchiveBinding)
 		{
-			final String location;
-			if ("emucon-rootfs".equals(resource.getId())) {
-				location = DataResolvers.emulators()
-						.resolve((ImageArchiveBinding) resource);
-			}
-			else if (resource.getId().startsWith("rom-")) {
-				location = DataResolvers.roms()
-						.resolve(componentId, (ImageArchiveBinding) resource);
-			}
-			else if (resource.getId().equals("checkpoint")) {
-				location = DataResolvers.checkpoints()
-						.resolve(componentId, (ImageArchiveBinding) resource);
-			}
-			else {
-				location = DataResolvers.images()
-						.resolve(componentId, (ImageArchiveBinding) resource);
-			}
-
+			final var binding = (ImageArchiveBinding) resource;
+			final var location = DataResolvers.resolve(componentId, binding);
 			resource.setUrl(location);
 		}
 
