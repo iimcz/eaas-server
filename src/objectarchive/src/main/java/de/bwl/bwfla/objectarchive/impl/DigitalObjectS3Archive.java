@@ -40,7 +40,6 @@ import de.bwl.bwfla.emucomp.api.EmulatorUtils;
 import de.bwl.bwfla.emucomp.api.FileCollection;
 import de.bwl.bwfla.emucomp.api.FileCollectionEntry;
 import de.bwl.bwfla.objectarchive.conf.ObjectArchiveSingleton;
-import de.bwl.bwfla.objectarchive.datatypes.DigitalObjectArchive;
 import de.bwl.bwfla.objectarchive.datatypes.DigitalObjectFileMetadata;
 import de.bwl.bwfla.objectarchive.datatypes.DigitalObjectS3ArchiveDescriptor;
 import de.bwl.bwfla.objectarchive.datatypes.MetsObject;
@@ -78,10 +77,8 @@ import java.util.stream.Stream;
 import static de.bwl.bwfla.objectarchive.impl.DigitalObjectFileArchive.UpdateCounts;
 
 
-public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchive
+public class DigitalObjectS3Archive extends DigitalObjectArchiveBase implements Serializable
 {
-	protected final Logger log = Logger.getLogger(this.getClass().getName());
-
 	private DigitalObjectS3ArchiveDescriptor descriptor;
 	private Bucket bucket;
 	private String basename;
@@ -111,17 +108,8 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	public DigitalObjectS3Archive(DigitalObjectS3ArchiveDescriptor descriptor)
 			throws BWFLAException
 	{
-		this.init(descriptor);
-	}
+		super("s3");
 
-	protected DigitalObjectS3Archive()
-	{
-		// Empty!
-	}
-
-	protected void init(DigitalObjectS3ArchiveDescriptor descriptor)
-			throws BWFLAException
-	{
 		ConfigurationInjection.getConfigurationInjector()
 				.configure(this);
 
@@ -138,6 +126,9 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 			this.basename = BlobStore.path(descriptor.getPath(), this.basename)
 					.toString();
 		}
+
+		log.getContext()
+				.add("name", basename);
 
 		this.driveMapper = new DriveMapper();
 		this.cache = this.load();
@@ -670,7 +661,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	@Override
 	public String resolveObjectResource(String objectId, String resourceId, String method) throws BWFLAException
 	{
-		var url = DigitalObjectArchive.super.resolveObjectResource(objectId, resourceId, method);
+		var url = super.resolveObjectResource(objectId, resourceId, method);
 		if (url == null || DataResolver.isAbsoluteUrl(url))
 			return url;
 
@@ -682,7 +673,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	@Override
 	public String resolveObjectResourceInternally(String objectId, String resourceId, String method) throws BWFLAException
 	{
-		var url = DigitalObjectArchive.super.resolveObjectResourceInternally(objectId, resourceId, method);
+		var url = super.resolveObjectResourceInternally(objectId, resourceId, method);
 		if (url == null || DataResolver.isAbsoluteUrl(url)){
 			return url;
 		}

@@ -65,7 +65,9 @@ import de.bwl.bwfla.objectarchive.impl.DigitalObjectFileArchive;
 public class ObjectArchiveSingleton
 		implements IMigratable
 {
-	protected static final Logger				LOG	= Logger.getLogger(ObjectArchiveSingleton.class.getName());
+	public static final String LOGGER_NAME = "OBJECT-ARCHIVE";
+	protected static final Logger LOG = Logger.getLogger(LOGGER_NAME);
+
 	public static volatile boolean 				confValid = false;
 	//public static volatile ObjectArchiveConf	CONF;
 	public static ConcurrentHashMap<String, DigitalObjectArchive> archiveMap = null;

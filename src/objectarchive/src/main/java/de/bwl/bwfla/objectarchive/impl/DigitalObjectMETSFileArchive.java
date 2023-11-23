@@ -43,14 +43,12 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Stream;
 
 
-public class DigitalObjectMETSFileArchive implements Serializable, DigitalObjectArchive
+public class DigitalObjectMETSFileArchive extends DigitalObjectArchiveBase implements Serializable
 {
 	private static final long	serialVersionUID	= -3958997016973537612L;
-	protected final Logger log	= Logger.getLogger(this.getClass().getName());
 
 	final private String name;
 	final private File metaDataDir;
@@ -60,6 +58,10 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 	private Map<String, MetsObject> objects;
 
 	public DigitalObjectMETSFileArchive(String name, String metaDataPath, String dataPath, boolean defaultArchive) throws BWFLAException {
+		super("mets");
+		log.getContext()
+				.add("name", name);
+
 		this.name = name;
 		this.metaDataDir = new File(metaDataPath);
 		if(!metaDataDir.exists() && !metaDataDir.isDirectory())
@@ -216,7 +218,7 @@ public class DigitalObjectMETSFileArchive implements Serializable, DigitalObject
 
 	@Override
 	public String resolveObjectResource(String objectId, String resourceId, String method) throws BWFLAException {
-		final var url = DigitalObjectArchive.super.resolveObjectResource(objectId, resourceId, method);
+		final var url = super.resolveObjectResource(objectId, resourceId, method);
 		if (url == null || DataResolver.isAbsoluteUrl(url))
 			return url;
 
