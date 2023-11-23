@@ -132,6 +132,7 @@ public class DigitalObjectMETSFileArchive extends DigitalObjectArchiveBase imple
 		if (objects == null)
 			objects = Collections.emptyMap();
 
+		log.info("Loading objects from path: " + metaDataDir.getAbsolutePath());
 		for(File mets: metaDataDir.listFiles())
 		{
 			try {
