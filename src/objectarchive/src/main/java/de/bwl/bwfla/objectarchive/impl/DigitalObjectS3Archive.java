@@ -82,6 +82,7 @@ public class DigitalObjectS3Archive extends DigitalObjectArchiveBase implements 
 	private DigitalObjectS3ArchiveDescriptor descriptor;
 	private Bucket bucket;
 	private String basename;
+	private String basepath;
 	private DriveMapper driveMapper;
 	private Map<String, MetsObject> cache;
 
@@ -123,8 +124,11 @@ public class DigitalObjectS3Archive extends DigitalObjectArchiveBase implements 
 		this.bucket = blobstore.bucket(descriptor.getBucket());
 		this.basename = DigitalObjectS3Archive.strSaveFilename(descriptor.getName());
 		if (descriptor.getPath() != null) {
-			this.basename = BlobStore.path(descriptor.getPath(), this.basename)
+			this.basepath = BlobStore.path(descriptor.getPath(), this.basename)
 					.toString();
+		}
+		else {
+			this.basepath = this.basename;
 		}
 
 		log.getContext()
@@ -170,7 +174,7 @@ public class DigitalObjectS3Archive extends DigitalObjectArchiveBase implements 
 
 	private BlobStore.Path location(String id)
 	{
-		return BlobStore.path(basename, id);
+		return BlobStore.path(basepath, id);
 	}
 
 	private BlobStore.Path resolveTarget(String id, ResourceType rt)
@@ -347,7 +351,7 @@ public class DigitalObjectS3Archive extends DigitalObjectArchiveBase implements 
 
 	private Stream<String> listObjectIds()
 	{
-		final var prefix = basename + "/";
+		final var prefix = basepath + "/";
 
 		try {
 			return bucket.list(prefix)
@@ -1023,7 +1027,7 @@ public class DigitalObjectS3Archive extends DigitalObjectArchiveBase implements 
 		final var ocounter = UpdateCounts.counter();
 
 		final Function<Path, Integer> fuploader = (path) -> {
-			final var name = basename + "/" + basedir.relativize(path);
+			final var name = basepath + "/" + basedir.relativize(path);
 			final var contentType = (name.endsWith(METS_MD_FILENAME)) ?
 					MediaType.APPLICATION_XML : MediaType.APPLICATION_OCTET_STREAM;
 
