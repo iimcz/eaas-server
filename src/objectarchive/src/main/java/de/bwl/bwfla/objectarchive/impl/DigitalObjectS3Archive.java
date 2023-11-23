@@ -157,6 +157,7 @@ public class DigitalObjectS3Archive extends DigitalObjectArchiveBase implements 
 			}
 		};
 
+		log.info("Loading objects from bucket: s3://" + bucket.name() + "/" + basepath);
 		this.listObjectIds()
 				.forEach(downloader);
 
@@ -470,7 +471,7 @@ public class DigitalObjectS3Archive extends DigitalObjectArchiveBase implements 
 
 		cache.put(mets.getID(), new MetsObject(metsdata));
 
-		log.info("Object metadata uploaded to: " + blob.name());
+		log.info("Object metadata uploaded to: s3://" + bucket.name() + "/" + blob.name());
 	}
 
 	@Override
