@@ -588,7 +588,7 @@ public class DigitalObjectS3Archive extends DigitalObjectArchiveBase implements 
 	private DigitalObjectMetadata getMetadataHelper(String objectId, BiFunction<String, String, String> metsExportPrefixer) throws BWFLAException
 	{
 		final var data = this.loadMetsData(objectId);
-		final var mets = MetsUtil.export(data.getMets(), metsExportPrefixer);
+		final var mets = MetsUtil.export(data.getMets(), metsExportPrefixer, metsExportPrefixer != null);
 		final var md = new DigitalObjectMetadata(mets);
 		md.markAsSoftware(data.isSoftware());
 		try {
