@@ -36,10 +36,16 @@ public class DataResolvers
 		return OBJECTS;
 	}
 
+	public static RomDataResolver roms()
+	{
+		return ROMS;
+	}
+
 
 	// ===== Internal Helpers ====================
 
 	private static final ImageDataResolver IMAGES = new ImageDataResolver();
 	private static final EmulatorDataResolver EMULATORS = new EmulatorDataResolver();
 	private static final ObjectDataResolver OBJECTS = new ObjectDataResolver();
+	private static final RomDataResolver ROMS = new RomDataResolver();
 }

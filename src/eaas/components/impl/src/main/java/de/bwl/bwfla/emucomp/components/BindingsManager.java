@@ -174,6 +174,10 @@ public class BindingsManager
 				location = DataResolvers.emulators()
 						.resolve((ImageArchiveBinding) resource);
 			}
+			else if (resource.getId().startsWith("rom-")) {
+				location = DataResolvers.roms()
+						.resolve(componentId, (ImageArchiveBinding) resource);
+			}
 			else {
 				location = DataResolvers.images()
 						.resolve(componentId, (ImageArchiveBinding) resource);

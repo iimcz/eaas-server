@@ -229,6 +229,12 @@ public class EnvironmentRepository extends EmilRest
 		return new Images();
 	}
 
+	@Path("/roms")
+	public Roms roms()
+	{
+		return new Roms();
+	}
+
 	@GET
 	@Path("/db-migration")
 	@Secured(roles={Role.RESTRICTED})
@@ -518,6 +524,14 @@ public class EnvironmentRepository extends EmilRest
 //				return new TaskStateResponse(e);
 //			}
 //		}
+	}
+
+	public class Roms extends ResolvableResource
+	{
+		public Roms()
+		{
+			super("rom", imagearchive.api().v2().roms());
+		}
 	}
 
 	public class Environments
