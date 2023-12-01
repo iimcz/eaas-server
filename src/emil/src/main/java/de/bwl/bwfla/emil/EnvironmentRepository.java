@@ -27,11 +27,11 @@ import com.openslx.eaas.generalization.ImageGeneralizationPatchDescription;
 import com.openslx.eaas.generalization.ImageGeneralizationPatchResponse;
 import com.openslx.eaas.imagearchive.ImageArchiveClient;
 import com.openslx.eaas.imagearchive.ImageArchiveMappers;
-import com.openslx.eaas.imagearchive.api.v2.common.InsertOptionsV2;
 import com.openslx.eaas.imagearchive.api.v2.common.ReplaceOptionsV2;
 import com.openslx.eaas.imagearchive.api.v2.common.ResolveOptionsV2;
 import com.openslx.eaas.imagearchive.api.v2.databind.AccessMethodV2;
 import com.openslx.eaas.imagearchive.api.v2.databind.MetaDataKindV2;
+import com.openslx.eaas.imagearchive.client.endpoint.v2.common.IReadableResource;
 import com.openslx.eaas.imagearchive.client.endpoint.v2.common.RemoteResourceRW;
 import com.openslx.eaas.imagearchive.client.endpoint.v2.util.EmulatorMetaHelperV2;
 import com.openslx.eaas.imagearchive.databind.EmulatorMetaData;
@@ -389,8 +389,65 @@ public class EnvironmentRepository extends EmilRest
 
 	// ========== Subresources ==============================
 
-	public class Images
+	public class ResolvableResource
 	{
+		private final String kind;
+		private final IReadableResource<?> resource;
+
+		protected ResolvableResource(String kind, IReadableResource<?> resource)
+		{
+			this.kind = kind;
+			this.resource = resource;
+		}
+
+		@HEAD
+		@Path("/{id}/url")
+		@Secured(roles = {Role.PUBLIC})
+		public Response resolveHEAD(@PathParam("id") String id)
+		{
+			return this.resolve(id, HttpMethod.HEAD);
+		}
+
+		@GET
+		@Path("/{id}/url")
+		@Secured(roles = {Role.PUBLIC})
+		public Response resolveGET(@PathParam("id") String id)
+		{
+			return this.resolve(id, HttpMethod.GET);
+		}
+
+		private Response resolve(String id, String method)
+		{
+			try {
+				final var userctx = EnvironmentRepository.this.getUserContext();
+				final var options = new ResolveOptionsV2()
+						.setMethod(AccessMethodV2.valueOf(method));
+
+				if (userctx.isAvailable()) {
+					options.userinfo()
+							.setTenantId(userctx.getTenantId())
+							.setUserId(userctx.getUserId());
+				}
+
+				final var location = resource.resolve(id, options);
+				LOG.info("Resolving " + kind + " '" + id + "' -> " + method + " " + location);
+				return Response.temporaryRedirect(new URI(location))
+						.build();
+			}
+			catch (Exception error) {
+				LOG.log(Level.WARNING, "Resolving " + kind + " '" + id + "' failed!", error);
+				throw new NotFoundException();
+			}
+		}
+	}
+
+	public class Images extends ResolvableResource
+	{
+		public Images()
+		{
+			super("image", imagearchive.api().v2().images());
+		}
+
 		/** List all available images */
 		@GET
 		@Secured(roles={Role.PUBLIC})
@@ -435,50 +492,6 @@ public class EnvironmentRepository extends EmilRest
                         .replace(userMetaData.id(), updatedMetadata, ImageArchiveMappers.OBJECT_TO_JSON_TREE);
 
 			return Response.status(Status.OK).build();
-		}
-
-		@HEAD
-		@Path("/{imgid}/url")
-		@Secured(roles={Role.PUBLIC})
-		public Response resolveHEAD(@PathParam("imgid") String imgid)
-		{
-			return this.resolve(imgid, HttpMethod.HEAD);
-		}
-
-		@GET
-		@Path("/{imgid}/url")
-		@Secured(roles={Role.PUBLIC})
-		public Response resolveGET(@PathParam("imgid") String imgid)
-		{
-			return this.resolve(imgid, HttpMethod.GET);
-		}
-
-		private Response resolve(String imgid, String method)
-		{
-			try {
-				final var userctx = EnvironmentRepository.this.getUserContext();
-				final var options = new ResolveOptionsV2()
-						.setMethod(AccessMethodV2.valueOf(method));
-
-				if (userctx.isAvailable()) {
-					options.userinfo()
-							.setTenantId(userctx.getTenantId())
-							.setUserId(userctx.getUserId());
-				}
-
-				final var location = imagearchive.api()
-						.v2()
-						.images()
-						.resolve(imgid, options);
-
-				LOG.info("Resolving image '" + imgid + "' -> " + method + " " + location);
-				return Response.temporaryRedirect(new URI(location))
-						.build();
-			}
-			catch (Exception error) {
-				LOG.log(Level.WARNING, "Resolving image '" + imgid + "' failed!", error);
-				throw new NotFoundException();
-			}
 		}
 
 		/** Create a new environment */
