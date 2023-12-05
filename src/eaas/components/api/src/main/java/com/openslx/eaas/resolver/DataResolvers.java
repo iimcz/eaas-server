@@ -18,6 +18,9 @@
 
 package com.openslx.eaas.resolver;
 
+import de.bwl.bwfla.common.services.security.UserContext;
+import de.bwl.bwfla.emucomp.api.ImageArchiveBinding;
+
 
 public class DataResolvers
 {
@@ -44,6 +47,49 @@ public class DataResolvers
 	public static CheckpointDataResolver checkpoints()
 	{
 		return CHECKPOINTS;
+	}
+
+
+	// ===== Utilities ====================
+
+	public static String resolve(String componentId, ImageArchiveBinding binding)
+	{
+		switch (binding.getKind()) {
+			case EMULATOR:
+				return DataResolvers.emulators()
+						.resolve(binding);
+			case IMAGE:
+				return DataResolvers.images()
+						.resolve(componentId, binding);
+			case CHECKPOINT:
+				return DataResolvers.checkpoints()
+						.resolve(componentId, binding);
+			case ROM:
+				return DataResolvers.roms()
+					.resolve(componentId, binding);
+		}
+
+		throw new IllegalArgumentException("Unknown image-kind: " + binding.getKind());
+	}
+
+	public static String resolve(ImageArchiveBinding binding, UserContext userctx)
+	{
+		switch (binding.getKind()) {
+			case EMULATOR:
+				return DataResolvers.emulators()
+						.resolve(binding);
+			case IMAGE:
+				return DataResolvers.images()
+						.resolve(binding, userctx);
+			case CHECKPOINT:
+				return DataResolvers.checkpoints()
+						.resolve(binding, userctx);
+			case ROM:
+				return DataResolvers.roms()
+						.resolve(binding, userctx);
+		}
+
+		throw new IllegalArgumentException("Unknown image-kind: " + binding.getKind());
 	}
 
 
