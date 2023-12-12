@@ -44,6 +44,7 @@ import de.bwl.bwfla.objectarchive.datatypes.DigitalObjectFileMetadata;
 import de.bwl.bwfla.objectarchive.datatypes.DigitalObjectS3ArchiveDescriptor;
 import de.bwl.bwfla.objectarchive.datatypes.MetsObject;
 import gov.loc.mets.Mets;
+import gov.loc.mets.MetsType;
 import org.apache.tamaya.inject.ConfigurationInjection;
 import org.apache.tamaya.inject.api.Config;
 
@@ -74,6 +75,7 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static de.bwl.bwfla.common.utils.METS.MetsUtil.MetsEaasConstant.FILE_GROUP_OBJECTS;
 import static de.bwl.bwfla.objectarchive.impl.DigitalObjectFileArchive.UpdateCounts;
 
 
@@ -1113,5 +1115,106 @@ public class DigitalObjectS3Archive extends DigitalObjectArchiveBase implements 
 			throw new BWFLAException("Importing legacy objects failed!");
 
 		this.sync();
+	}
+
+	public void fixFileLocationUrls(MigrationConfig mc) throws Exception
+	{
+		final var digitalObjectsGroupName = FILE_GROUP_OBJECTS.toString();
+		final var dataResolverEndpoint = DataResolver.getDefaultEndpoint();
+		final var counter = UpdateCounts.counter();
+		final var guard = new Object();
+
+		final BiFunction<MetsType.FileSec, String, MetsType.FileSec.FileGrp> fgfinder = (fsec, fgname) -> {
+			final var fgroups = (fsec != null) ? fsec.getFileGrp() : Collections.<MetsType.FileSec.FileGrp>emptyList();
+			for (final var fgroup : fgroups) {
+				if (fgname.equals(fgroup.getUSE()))
+					return fgroup;
+			}
+
+			return null;
+		};
+
+		final Consumer<String> fixer = (objectId) -> {
+			try {
+				final var mets = this.loadMetsData(objectId)
+						.getMets();
+
+				final var fsec = mets.getFileSec();
+				if (fsec == null)
+					return;
+
+				final var fgroup = fgfinder.apply(fsec, digitalObjectsGroupName);
+				if (fgroup == null)
+					return;
+
+				final var updatemsgs = new ArrayList<String>();
+				FileCollection description = null;
+
+				final var files = fgroup.getFile();
+				for (final var fit = files.iterator(); fit.hasNext();) {
+					final var flocations = fit.next().getFLocat();
+					for (final var flit = flocations.iterator(); flit.hasNext(); ) {
+						final var flocat = flit.next();
+						final var oldurl = flocat.getHref();
+
+						// should the url be fixed?
+						if (!oldurl.startsWith(dataResolverEndpoint))
+							continue;  // no, skip this file
+
+						final var filename = flocat.getTitle();
+						if (filename == null)
+							throw new IllegalStateException("Filename is missing!");
+
+						// generate description from storage layout
+						if (description == null)
+							description = this.describe(objectId);
+
+						// find current file's url by its filename...
+						String newurl = null;
+						for (final var fce : description.files) {
+							final var fceurl = fce.getUrl();
+							if (fceurl.endsWith(filename)) {
+								newurl = fceurl;
+								break;
+							}
+						}
+
+						if (newurl == null)
+							throw new IllegalStateException("No matching URL found for file '" + filename + "'!");
+
+						flocat.setHref(newurl);
+						updatemsgs.add("FLocat-URL: " + oldurl + " -> " + flocat.getHref());
+					}
+				}
+
+				if (updatemsgs.isEmpty())
+					return;
+
+				synchronized (guard) {
+					log.info("Updates for object '" + objectId + "':");
+					for (final var msg : updatemsgs)
+						log.info("  " + msg);
+				}
+
+				this.writeMetsFile(mets);
+				counter.increment(UpdateCounts.UPDATED);
+			}
+			catch (Exception error) {
+				log.log(Level.WARNING, "Fixing object '" + objectId + "' failed!", error);
+				counter.increment(UpdateCounts.FAILED);
+			}
+		};
+
+		log.info("Fixing object file-locations in archive '" + this.getName() + "'...");
+		try (final var ids = this.getObjectIds()) {
+			ParallelProcessors.consumer(fixer)
+					.consume(ids, ObjectArchiveSingleton.executor());
+		}
+
+		final var numFixed = counter.get(UpdateCounts.UPDATED);
+		final var numFailed = counter.get(UpdateCounts.FAILED);
+		log.info("Fixed " + numFixed + " object(s), failed " + numFailed);
+		if (!MigrationUtils.acceptable(numFixed + numFailed, numFailed, MigrationUtils.getFailureRate(mc)))
+			throw new BWFLAException("Fixing object file-locations failed!");
 	}
 }

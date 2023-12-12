@@ -256,6 +256,7 @@ public class ObjectArchiveSingleton
 		migrations.register("cleanup-legacy-object-files", this::cleanupLegacyObjectFiles);
 		migrations.register("rename-user-object-archives", this::renameUserArchives);
 		migrations.register("import-legacy-object-archives-v1", this::importLegacyArchivesV1);
+		migrations.register("fix-mets-file-location-urls", this::fixMetsFileLocationUrls);
 	}
 
 	private interface IHandler<T>
@@ -354,5 +355,15 @@ public class ObjectArchiveSingleton
 			final var usrarchive = new DigitalObjectUserArchive(usrdesc);
 			usrarchive.importLegacyArchive(mc, Path.of(usrbasedir, name));
 		}
+	}
+
+	private void fixMetsFileLocationUrls(MigrationConfig mc) throws Exception
+	{
+		final IHandler<DigitalObjectArchive> migration = (archive) -> {
+			if (archive instanceof DigitalObjectS3Archive)
+				((DigitalObjectS3Archive) archive).fixFileLocationUrls(mc);
+		};
+
+		this.execute(migration);
 	}
 }
