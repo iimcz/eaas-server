@@ -40,11 +40,11 @@ import de.bwl.bwfla.emucomp.api.EmulatorUtils;
 import de.bwl.bwfla.emucomp.api.FileCollection;
 import de.bwl.bwfla.emucomp.api.FileCollectionEntry;
 import de.bwl.bwfla.objectarchive.conf.ObjectArchiveSingleton;
-import de.bwl.bwfla.objectarchive.datatypes.DigitalObjectArchive;
 import de.bwl.bwfla.objectarchive.datatypes.DigitalObjectFileMetadata;
 import de.bwl.bwfla.objectarchive.datatypes.DigitalObjectS3ArchiveDescriptor;
 import de.bwl.bwfla.objectarchive.datatypes.MetsObject;
 import gov.loc.mets.Mets;
+import gov.loc.mets.MetsType;
 import org.apache.tamaya.inject.ConfigurationInjection;
 import org.apache.tamaya.inject.api.Config;
 
@@ -75,16 +75,16 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static de.bwl.bwfla.common.utils.METS.MetsUtil.MetsEaasConstant.FILE_GROUP_OBJECTS;
 import static de.bwl.bwfla.objectarchive.impl.DigitalObjectFileArchive.UpdateCounts;
 
 
-public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchive
+public class DigitalObjectS3Archive extends DigitalObjectArchiveBase implements Serializable
 {
-	protected final Logger log = Logger.getLogger(this.getClass().getName());
-
 	private DigitalObjectS3ArchiveDescriptor descriptor;
 	private Bucket bucket;
 	private String basename;
+	private String basepath;
 	private DriveMapper driveMapper;
 	private Map<String, MetsObject> cache;
 
@@ -111,17 +111,8 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	public DigitalObjectS3Archive(DigitalObjectS3ArchiveDescriptor descriptor)
 			throws BWFLAException
 	{
-		this.init(descriptor);
-	}
+		super("s3");
 
-	protected DigitalObjectS3Archive()
-	{
-		// Empty!
-	}
-
-	protected void init(DigitalObjectS3ArchiveDescriptor descriptor)
-			throws BWFLAException
-	{
 		ConfigurationInjection.getConfigurationInjector()
 				.configure(this);
 
@@ -135,9 +126,15 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 		this.bucket = blobstore.bucket(descriptor.getBucket());
 		this.basename = DigitalObjectS3Archive.strSaveFilename(descriptor.getName());
 		if (descriptor.getPath() != null) {
-			this.basename = BlobStore.path(descriptor.getPath(), this.basename)
+			this.basepath = BlobStore.path(descriptor.getPath(), this.basename)
 					.toString();
 		}
+		else {
+			this.basepath = this.basename;
+		}
+
+		log.getContext()
+				.add("name", basename);
 
 		this.driveMapper = new DriveMapper();
 		this.cache = this.load();
@@ -162,6 +159,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 			}
 		};
 
+		log.info("Loading objects from bucket: s3://" + bucket.name() + "/" + basepath);
 		this.listObjectIds()
 				.forEach(downloader);
 
@@ -179,7 +177,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 
 	private BlobStore.Path location(String id)
 	{
-		return BlobStore.path(basename, id);
+		return BlobStore.path(basepath, id);
 	}
 
 	private BlobStore.Path resolveTarget(String id, ResourceType rt)
@@ -356,7 +354,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 
 	private Stream<String> listObjectIds()
 	{
-		final var prefix = basename + "/";
+		final var prefix = basepath + "/";
 
 		try {
 			return bucket.list(prefix)
@@ -475,7 +473,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 
 		cache.put(mets.getID(), new MetsObject(metsdata));
 
-		log.info("Object metadata uploaded to: " + blob.name());
+		log.info("Object metadata uploaded to: s3://" + bucket.name() + "/" + blob.name());
 	}
 
 	@Override
@@ -592,7 +590,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	private DigitalObjectMetadata getMetadataHelper(String objectId, BiFunction<String, String, String> metsExportPrefixer) throws BWFLAException
 	{
 		final var data = this.loadMetsData(objectId);
-		final var mets = MetsUtil.export(data.getMets(), metsExportPrefixer);
+		final var mets = MetsUtil.export(data.getMets(), metsExportPrefixer, metsExportPrefixer != null);
 		final var md = new DigitalObjectMetadata(mets);
 		md.markAsSoftware(data.isSoftware());
 		try {
@@ -670,7 +668,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	@Override
 	public String resolveObjectResource(String objectId, String resourceId, String method) throws BWFLAException
 	{
-		var url = DigitalObjectArchive.super.resolveObjectResource(objectId, resourceId, method);
+		var url = super.resolveObjectResource(objectId, resourceId, method);
 		if (url == null || DataResolver.isAbsoluteUrl(url))
 			return url;
 
@@ -682,7 +680,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 	@Override
 	public String resolveObjectResourceInternally(String objectId, String resourceId, String method) throws BWFLAException
 	{
-		var url = DigitalObjectArchive.super.resolveObjectResourceInternally(objectId, resourceId, method);
+		var url = super.resolveObjectResourceInternally(objectId, resourceId, method);
 		if (url == null || DataResolver.isAbsoluteUrl(url)){
 			return url;
 		}
@@ -1032,7 +1030,7 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 		final var ocounter = UpdateCounts.counter();
 
 		final Function<Path, Integer> fuploader = (path) -> {
-			final var name = basename + "/" + basedir.relativize(path);
+			final var name = basepath + "/" + basedir.relativize(path);
 			final var contentType = (name.endsWith(METS_MD_FILENAME)) ?
 					MediaType.APPLICATION_XML : MediaType.APPLICATION_OCTET_STREAM;
 
@@ -1117,5 +1115,106 @@ public class DigitalObjectS3Archive implements Serializable, DigitalObjectArchiv
 			throw new BWFLAException("Importing legacy objects failed!");
 
 		this.sync();
+	}
+
+	public void fixFileLocationUrls(MigrationConfig mc) throws Exception
+	{
+		final var digitalObjectsGroupName = FILE_GROUP_OBJECTS.toString();
+		final var dataResolverEndpoint = DataResolver.getDefaultEndpoint();
+		final var counter = UpdateCounts.counter();
+		final var guard = new Object();
+
+		final BiFunction<MetsType.FileSec, String, MetsType.FileSec.FileGrp> fgfinder = (fsec, fgname) -> {
+			final var fgroups = (fsec != null) ? fsec.getFileGrp() : Collections.<MetsType.FileSec.FileGrp>emptyList();
+			for (final var fgroup : fgroups) {
+				if (fgname.equals(fgroup.getUSE()))
+					return fgroup;
+			}
+
+			return null;
+		};
+
+		final Consumer<String> fixer = (objectId) -> {
+			try {
+				final var mets = this.loadMetsData(objectId)
+						.getMets();
+
+				final var fsec = mets.getFileSec();
+				if (fsec == null)
+					return;
+
+				final var fgroup = fgfinder.apply(fsec, digitalObjectsGroupName);
+				if (fgroup == null)
+					return;
+
+				final var updatemsgs = new ArrayList<String>();
+				FileCollection description = null;
+
+				final var files = fgroup.getFile();
+				for (final var fit = files.iterator(); fit.hasNext();) {
+					final var flocations = fit.next().getFLocat();
+					for (final var flit = flocations.iterator(); flit.hasNext(); ) {
+						final var flocat = flit.next();
+						final var oldurl = flocat.getHref();
+
+						// should the url be fixed?
+						if (!oldurl.startsWith(dataResolverEndpoint))
+							continue;  // no, skip this file
+
+						final var filename = flocat.getTitle();
+						if (filename == null)
+							throw new IllegalStateException("Filename is missing!");
+
+						// generate description from storage layout
+						if (description == null)
+							description = this.describe(objectId);
+
+						// find current file's url by its filename...
+						String newurl = null;
+						for (final var fce : description.files) {
+							final var fceurl = fce.getUrl();
+							if (fceurl.endsWith(filename)) {
+								newurl = fceurl;
+								break;
+							}
+						}
+
+						if (newurl == null)
+							throw new IllegalStateException("No matching URL found for file '" + filename + "'!");
+
+						flocat.setHref(newurl);
+						updatemsgs.add("FLocat-URL: " + oldurl + " -> " + flocat.getHref());
+					}
+				}
+
+				if (updatemsgs.isEmpty())
+					return;
+
+				synchronized (guard) {
+					log.info("Updates for object '" + objectId + "':");
+					for (final var msg : updatemsgs)
+						log.info("  " + msg);
+				}
+
+				this.writeMetsFile(mets);
+				counter.increment(UpdateCounts.UPDATED);
+			}
+			catch (Exception error) {
+				log.log(Level.WARNING, "Fixing object '" + objectId + "' failed!", error);
+				counter.increment(UpdateCounts.FAILED);
+			}
+		};
+
+		log.info("Fixing object file-locations in archive '" + this.getName() + "'...");
+		try (final var ids = this.getObjectIds()) {
+			ParallelProcessors.consumer(fixer)
+					.consume(ids, ObjectArchiveSingleton.executor());
+		}
+
+		final var numFixed = counter.get(UpdateCounts.UPDATED);
+		final var numFailed = counter.get(UpdateCounts.FAILED);
+		log.info("Fixed " + numFixed + " object(s), failed " + numFailed);
+		if (!MigrationUtils.acceptable(numFixed + numFailed, numFailed, MigrationUtils.getFailureRate(mc)))
+			throw new BWFLAException("Fixing object file-locations failed!");
 	}
 }

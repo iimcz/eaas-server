@@ -39,7 +39,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -75,10 +74,9 @@ import static de.bwl.bwfla.common.utils.METS.MetsUtil.MetsEaasConstant.FILE_GROU
 
 
 // FIXME: this class should be implemented in a style of a "Builder" pattern
-public class DigitalObjectFileArchive implements Serializable, DigitalObjectArchive
+public class DigitalObjectFileArchive extends DigitalObjectArchiveBase implements Serializable
 {
 	private static final long	serialVersionUID	= -3958997016973537612L;
-	protected final Logger log	= Logger.getLogger(this.getClass().getName());
 
 	private String name;
 	private String localPath;
@@ -109,13 +107,20 @@ public class DigitalObjectFileArchive implements Serializable, DigitalObjectArch
 	 */
 	public DigitalObjectFileArchive(String name, String localPath, boolean defaultArchive)
 	{
+		this();
 		this.init(name, localPath, defaultArchive);
 	}
 
-	protected DigitalObjectFileArchive() {}
+	protected DigitalObjectFileArchive()
+	{
+		super("file");
+	}
 
 	protected void init(String name, String localPath, boolean defaultArchive)
 	{
+		log.getContext()
+				.add("name", name);
+
 		var httpExport = ConfigurationProvider.getConfiguration()
 				.get("objectarchive.httpexport");
 
@@ -633,7 +638,7 @@ public class DigitalObjectFileArchive implements Serializable, DigitalObjectArch
 
 	@Override
 	public String resolveObjectResource(String objectId, String resourceId, String method) throws BWFLAException {
-		final var url = DigitalObjectArchive.super.resolveObjectResource(objectId, resourceId, method);
+		final var url = super.resolveObjectResource(objectId, resourceId, method);
 		if (url == null || DataResolver.isAbsoluteUrl(url))
 			return url;
 
