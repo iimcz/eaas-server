@@ -8,6 +8,8 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
+import javax.annotation.Priority;
+import javax.enterprise.inject.Alternative;
 import javax.inject.Inject;
 
 import de.bwl.bwfla.emucomp.api.MachineConfiguration;
@@ -24,6 +26,7 @@ import de.bwl.bwfla.emucomp.api.Nic;
  * @author iv1004
  *
  */
+@Priority(100) @Alternative
 public class QemuBean extends EmulatorBean
 {
 
@@ -33,7 +36,7 @@ public class QemuBean extends EmulatorBean
 	@Config("components.binary.qemu")
 	protected String qemu_bin;
 
-	private String monitor_path;
+	protected String monitor_path;
 
 	@Override
 	boolean isHeadlessSupported()
@@ -57,7 +60,7 @@ public class QemuBean extends EmulatorBean
 		x86_64, ppc, i386, sparc,
 	}
 
-	private boolean isValidQemuArch(String qemuArch) {
+	protected boolean isValidQemuArch(String qemuArch) {
 		for (QEMU_ARCH defined_arch : QEMU_ARCH.values()) {
 			if (qemuArch.contains(defined_arch.name())) {
 				return true;
@@ -446,7 +449,7 @@ public class QemuBean extends EmulatorBean
 			}
 	}
 
-	private boolean runKvmCheck() throws BWFLAException
+	protected boolean runKvmCheck() throws BWFLAException
 	{
 		final ProcessRunner runner = new ProcessRunner("kvm-ok");
 		runner.redirectStdErrToStdOut(false);

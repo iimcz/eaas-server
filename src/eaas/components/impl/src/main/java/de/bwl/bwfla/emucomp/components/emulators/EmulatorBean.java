@@ -597,6 +597,10 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 		}
 	}
 
+	protected void addAdditionalContainerConfigArguments(ProcessRunner runner) throws BWFLAException {
+		// by default do nothing
+	}
+
 	private void startBackend() throws BWFLAException, IOException
 	{
 		if (this.isLocalModeEnabled())
@@ -701,6 +705,9 @@ public abstract class EmulatorBean extends EaasComponentBean implements Emulator
 				// Enable KVM device (if needed)
 				if (isKvmDeviceEnabled)
 					cgen.addArgument("--enable-kvm");
+
+				// Add additional arguments required by the emulator
+				addAdditionalContainerConfigArguments(cgen);
 
 				final String conNetDir = hostPathReplacer.apply(this.getNetworksDir().toString());
 

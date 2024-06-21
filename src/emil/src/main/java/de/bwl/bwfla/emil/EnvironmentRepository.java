@@ -671,10 +671,12 @@ public class EnvironmentRepository extends EmilRest
 			final UiOptions uiopts = machine.getUiOptions();
 			if (request.isUseXpra())
 				uiopts.setForwarding_system("XPRA");
-			else uiopts.setForwarding_system(null);
+			// TODO: why is this here? Why do we need to disable any other forwarding system and default to SDLONP?
+			//else uiopts.setForwarding_system(null);
 
 			if (request.isUseWebRTC())
 				uiopts.setAudio_system("webRTC");
+			// TODO: same as above, but right now does not need changing.
 			else uiopts.setAudio_system(null);
 
 			if (uiopts.getHtml5() == null)

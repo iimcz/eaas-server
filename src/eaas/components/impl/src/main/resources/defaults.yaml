@@ -30,6 +30,9 @@ components:
     xpra:
         ports: 7000-7100
         enable_gpu: false
+    passthrough:
+        vfio_group: 14
+        devices: 01:00.0,multifunction=on,x-vga=on;01:00.1
 
     vice_defaults_dir: /home/bwfla/server-data/vice-defaults
 
