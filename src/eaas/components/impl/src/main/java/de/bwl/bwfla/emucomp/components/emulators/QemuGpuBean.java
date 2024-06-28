@@ -17,6 +17,7 @@ import de.bwl.bwfla.common.datatypes.EmuCompState;
 import de.bwl.bwfla.common.exceptions.BWFLAException;
 import de.bwl.bwfla.common.utils.ProcessRunner;
 import de.bwl.bwfla.emucomp.api.MachineConfiguration;
+import de.bwl.bwfla.emucomp.control.connectors.QemuConnector;
 
 @Priority(90) @Alternative
 public class QemuGpuBean extends QemuBean {
@@ -165,6 +166,12 @@ public class QemuGpuBean extends QemuBean {
 
 		// TODO: a configurable value or use a modified VM parameter
 		runner.addArguments("--memlock-limit", "1099511627776");
+	}
+
+	@Override
+	public void start() throws BWFLAException {
+		addControlConnector(new QemuConnector(monitor_path));
+		super.start();
 	}
 
 	protected boolean runPassedDeviceCheck(String path) throws BWFLAException {

@@ -30,3 +30,6 @@ src/.m2
 src/\?
 
 deployments/
+
+# javax.usb setting for the usb4java library's high-level functions
+!src/eaas/components/impl/src/main/resources/javax.usb.properties

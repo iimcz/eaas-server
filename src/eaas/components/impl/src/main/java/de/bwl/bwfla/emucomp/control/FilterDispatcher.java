@@ -30,6 +30,7 @@ import javax.servlet.http.HttpServletRequest;
 
 import de.bwl.bwfla.emucomp.control.connectors.AudioConnector;
 import de.bwl.bwfla.emucomp.control.connectors.GuacamoleConnector;
+import de.bwl.bwfla.emucomp.control.connectors.QemuConnector;
 
 /*
  * This class dispatches URL requests to the correct servlet.
@@ -89,6 +90,12 @@ public class FilterDispatcher implements Filter
                     case AudioConnector.PROTOCOL: {
                         // use the custom signalling servlet for incoming requests
                         servletName = WebRtcSignallingServlet.SERVLET_NAME;
+                        break;
+                    }
+
+                    case QemuConnector.PROTOCOL: {
+                        // use the custom qemu control servlet for control requests
+                        servletName = QemuControlServlet.SERVLET_NAME;
                         break;
                     }
                 }
